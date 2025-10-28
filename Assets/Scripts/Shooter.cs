@@ -2,79 +2,64 @@ using UnityEngine;
 
 public class Shooter : MonoBehaviour
 {
+    [Header("Prefab do projétil")]
     [SerializeField] private GameObject projectilePrefab;
 
-    [Header("Cadência")]
-    [SerializeField] private float shootRate = 0.5f; // tempo entre tiros
-    private float shootTimer;
+    [Header("Força do disparo (controlada pela distância do mouse)")]
+    [SerializeField] private float minLaunchSpeed = 5f;     // tiro fraquinho
+    [SerializeField] private float maxLaunchSpeed = 20f;    // tiro forte
+    [SerializeField] private float maxChargeDistance = 10f; // distância pra já ser força máxima
 
-    [Header("Escala da força pelo alcance do mouse")]
-    [SerializeField] private float baseMoveSpeed = 5f;
-    [SerializeField] private float extraSpeedPerUnit = 1f;
+    [Header("Gravidade manual aplicada no projétil")]
+    [SerializeField] private float gravityStrength = 9f;
 
-    [SerializeField] private float baseArcHeight = 0.5f;
-    [SerializeField] private float extraArcPerUnit = 0.1f;
-
-    [Header("Rotação do projétil")]
+    [Header("Rotação visual do projétil")]
     [SerializeField] private float projectileRotationSpeed = 180f;
-
-    [Header("Curvas do projétil")]
-    [SerializeField] private AnimationCurve trajectoryAnimationCurve;
-    [SerializeField] private AnimationCurve axisCorrectionAnimationCurve;
-    [SerializeField] private AnimationCurve projectileSpeedAnimationCurve;
 
     private void Update()
     {
-        // atualiza cooldown
-        shootTimer -= Time.deltaTime;
-
-        // só dispara se:
-        // 1) botão esquerdo foi clicado nesse frame
-        // 2) passou o cooldown
-        if (Input.GetMouseButtonDown(0) && shootTimer <= 0f)
+        // toda vez que você CLICA botão esquerdo (down) gera UMA bala
+        if (Input.GetMouseButtonDown(0))
         {
-            // reseta cooldown
-            shootTimer = shootRate;
+            // posição da boca do tiro (normalmente seu player)
+            Vector3 startPos = transform.position;
+            startPos.z = 0f;
 
             // pega posição do mouse no mundo
             Vector3 mouseScreenPos = Input.mousePosition;
             Vector3 mouseWorldPos = Camera.main.ScreenToWorldPoint(mouseScreenPos);
             mouseWorldPos.z = 0f;
 
-            // calcula distância do player até o mouse
-            float distance = Vector3.Distance(transform.position, mouseWorldPos);
+            // direção normalizada da mira
+            Vector2 dir = (mouseWorldPos - startPos).normalized;
 
-            // força do tiro baseada nessa distância
-            float projectileMaxMoveSpeed = baseMoveSpeed + distance * extraSpeedPerUnit;
-            float projectileMaxHeight   = baseArcHeight  + distance * extraArcPerUnit;
+            // distância até o mouse → controla quão forte é o tiro
+            float distToMouse = Vector2.Distance(startPos, mouseWorldPos);
 
-            // cria alvo temporário na posição do mouse
-            GameObject mouseTargetGO = new GameObject("MouseTargetTemp");
-            mouseTargetGO.transform.position = mouseWorldPos;
+            // converte distância em velocidade inicial entre min e max
+            float t = Mathf.Clamp01(distToMouse / maxChargeDistance);
+            float launchSpeed = Mathf.Lerp(minLaunchSpeed, maxLaunchSpeed, t);
 
-            // instancia o projétil
-            Projectile projectile = Instantiate(
+            // velocidade inicial
+            Vector2 initialVelocity = dir * launchSpeed;
+
+            // instancia projétil
+            GameObject projGO = Instantiate(
                 projectilePrefab,
-                transform.position,
+                startPos,
                 Quaternion.identity
-            ).GetComponent<Projectile>();
+            );
 
-            // inicializa o projétil
-            projectile.InitializeProjectile(
-                mouseTargetGO.transform,
-                projectileMaxMoveSpeed,
-                projectileMaxHeight,
+            Projectile proj = projGO.GetComponent<Projectile>();
+
+            // se isso aqui for null, quer dizer que SEU PREFAB não tem o script Projectile na raiz
+            // isso daria NullReference na hora e o jogo travaria depois de alguns tiros.
+            // então é muito importante que o script Projectile esteja no GameObject raiz do prefab.
+            proj.Initialize(
+                initialVelocity,
+                gravityStrength,
                 projectileRotationSpeed
             );
-
-            projectile.InitializeAnimationCurves(
-                trajectoryAnimationCurve,
-                axisCorrectionAnimationCurve,
-                projectileSpeedAnimationCurve
-            );
-
-            // limpa o target temporário depois
-            Destroy(mouseTargetGO, 2f);
         }
     }
 }
