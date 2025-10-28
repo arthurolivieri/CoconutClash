@@ -3,7 +3,7 @@ using UnityEngine;
 [RequireComponent(typeof(LineRenderer))]
 public class AimPreview : MonoBehaviour
 {
-    [SerializeField] private float maxDistance = 4f; // comprimento da mira
+    [SerializeField] private float maxDistance = 4f; // tamanho máximo da linha
 
     private LineRenderer lr;
 
@@ -11,23 +11,22 @@ public class AimPreview : MonoBehaviour
     {
         lr = GetComponent<LineRenderer>();
 
-        // a linha só precisa de 2 pontos: origem e fim
         lr.positionCount = 2;
-
-        // desenhar em world space (sim, queremos isso)
         lr.useWorldSpace = true;
-
-        // deixar a linha sempre "virada pra câmera" no 2D
         lr.alignment = LineAlignment.View;
+
+        // largura inicial básica (se você não setou no Inspector ainda)
+        lr.startWidth = 0.05f;
+        lr.endWidth = 0.05f;
     }
 
     private void Update()
     {
-        // ponto inicial = posição do jogador / arma
+        // ponto inicial (jogador / arma)
         Vector3 startPos = transform.position;
         startPos.z = 0f;
 
-        // pega posição do mouse em coordenadas de mundo
+        // posição do mouse no mundo
         Vector3 mouseScreenPos = Input.mousePosition;
         Vector3 mouseWorldPos = Camera.main.ScreenToWorldPoint(mouseScreenPos);
         mouseWorldPos.z = 0f;
@@ -35,10 +34,18 @@ public class AimPreview : MonoBehaviour
         // direção normalizada
         Vector3 dir = (mouseWorldPos - startPos).normalized;
 
-        // ponto final da linha = início + direção * alcance
-        Vector3 endPos = startPos + dir * maxDistance;
+        // distância real até o mouse
+        float distToMouse = Vector3.Distance(startPos, mouseWorldPos);
 
-        // aplica nos pontos do LineRenderer
+        // quanto da linha vamos mostrar:
+        // - se o mouse está mais perto do que maxDistance → usa distToMouse
+        // - se está mais longe → trava em maxDistance
+        float visibleLength = Mathf.Min(distToMouse, maxDistance);
+
+        // ponto final visível da mira
+        Vector3 endPos = startPos + dir * visibleLength;
+
+        // aplica no LineRenderer
         lr.SetPosition(0, startPos);
         lr.SetPosition(1, endPos);
     }

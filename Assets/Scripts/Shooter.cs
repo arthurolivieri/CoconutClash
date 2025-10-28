@@ -4,42 +4,60 @@ public class Shooter : MonoBehaviour
 {
     [SerializeField] private GameObject projectilePrefab;
 
-    [SerializeField] private float shootRate;
-    [SerializeField] private float projectileMaxMoveSpeed;
-    [SerializeField] private float projectileMaxHeight;
-    [SerializeField] private float projectileRotationSpeed;
+    // NÃO usamos mais o target fixo no Inspector
+    // [SerializeField] private Transform target;
 
+    [Header("Cadência")]
+    [SerializeField] private float shootRate = 0.5f;
+    private float shootTimer;
+
+    [Header("Escala da força pelo alcance do mouse")]
+    [SerializeField] private float baseMoveSpeed = 5f;      // velocidade mínima da bala
+    [SerializeField] private float extraSpeedPerUnit = 1f;  // quanto a velocidade cresce por unidade de distância
+
+    [SerializeField] private float baseArcHeight = 0.5f;      // altura mínima do arco
+    [SerializeField] private float extraArcPerUnit = 0.1f;    // quanto a altura do arco cresce por unidade de distância
+
+    [Header("Rotação do projétil")]
+    [SerializeField] private float projectileRotationSpeed = 180f;
+
+    [Header("Curvas do projétil")]
     [SerializeField] private AnimationCurve trajectoryAnimationCurve;
     [SerializeField] private AnimationCurve axisCorrectionAnimationCurve;
     [SerializeField] private AnimationCurve projectileSpeedAnimationCurve;
-
-    private float shootTimer;
 
     private void Update()
     {
         shootTimer -= Time.deltaTime;
 
-        if (shootTimer <= 0)
+        if (shootTimer <= 0f)
         {
             shootTimer = shootRate;
 
-            // 1. pega posição do mouse em coordenadas de mundo (2D)
+            // 1. posição do mouse no mundo (2D)
             Vector3 mouseScreenPos = Input.mousePosition;
             Vector3 mouseWorldPos = Camera.main.ScreenToWorldPoint(mouseScreenPos);
-            mouseWorldPos.z = 0f; // garantimos z = 0 pro 2D
+            mouseWorldPos.z = 0f;
 
-            // 2. cria um "target" temporário nessa posição
+            // 2. calcula quão longe o mouse está do jogador
+            float distance = Vector3.Distance(transform.position, mouseWorldPos);
+
+            // 3. calcula a força baseada nessa distância
+            float projectileMaxMoveSpeed = baseMoveSpeed + distance * extraSpeedPerUnit;
+            float projectileMaxHeight   = baseArcHeight  + distance * extraArcPerUnit;
+
+            // 4. cria um "alvo" temporário na posição do mouse
             GameObject mouseTargetGO = new GameObject("MouseTargetTemp");
             mouseTargetGO.transform.position = mouseWorldPos;
 
-            // 3. instancia o projétil
+            // 5. instancia o projétil
             Projectile projectile = Instantiate(
                 projectilePrefab,
                 transform.position,
                 Quaternion.identity
             ).GetComponent<Projectile>();
 
-            // 4. inicializa o projétil com esse target temporário
+            // 6. inicializa o projétil usando os valores que dependem da distância
             projectile.InitializeProjectile(
                 mouseTargetGO.transform,
                 projectileMaxMoveSpeed,
@@ -53,8 +71,7 @@ public class Shooter : MonoBehaviour
                 projectileSpeedAnimationCurve
             );
 
-            // 5. opcional: destruir o GO auxiliar depois de um tempo
-            //    (porque esse objeto só serve pra guardar a posição alvo fixa)
+            // 7. destrói o alvo auxiliar depois (pra não poluir a cena)
             Destroy(mouseTargetGO, 2f);
         }
     }
