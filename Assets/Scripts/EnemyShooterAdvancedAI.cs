@@ -5,6 +5,8 @@ public class EnemyShooterAdvancedAI : MonoBehaviour
     [Header("Projectile Settings")]
     [SerializeField] private GameObject projectilePrefab;
     [SerializeField] private Transform target;
+    [Tooltip("Opcional: ponto exato de saída do projétil (ex.: ponta da arma).")]
+    [SerializeField] private Transform muzzleTransform;
 
     [Header("Shooting Rhythm")]
     [SerializeField] private float baseShootRate = 2f;
@@ -31,6 +33,21 @@ public class EnemyShooterAdvancedAI : MonoBehaviour
 
     [Header("Debug")]
     [SerializeField] private bool showDebugInfo = false;
+
+    [Header("Animation")]
+    [SerializeField] private Animator animator;
+    [SerializeField] private string shootBoolName = "is_shooting";
+    [SerializeField] private string shootStateName = "Shoot";
+    [Tooltip("Failsafe: se o evento final não disparar, desliga o bool após este tempo (s).")]
+    [SerializeField] private float shootClipMaxLength = 0.6f;
+
+    [Tooltip("Failsafe extra: se o evento de disparo não vier, dispara automaticamente após este atraso (s).")]
+    [SerializeField] private bool fireFailsafeIfNoEvent = true;
+    [SerializeField] private float fireFailsafeDelay = 0.2f;
+
+    private Coroutine shootFailsafeCoro;
+    private Coroutine fireFailsafeCoro;
+    private bool firedThisCycle = false;
 
     [System.Serializable]
     public struct ShooterSettings
@@ -71,6 +88,7 @@ public class EnemyShooterAdvancedAI : MonoBehaviour
     private void Awake()
     {
         CacheSettingsFromFields();
+        if (!animator) animator = GetComponent<Animator>();
     }
 
     private void Start()
@@ -82,10 +100,7 @@ public class EnemyShooterAdvancedAI : MonoBehaviour
 
     private void Update()
     {
-        if (projectilePrefab == null || target == null)
-        {
-            return;
-        }
+        if (projectilePrefab == null || target == null) return;
 
         shootTimer -= Time.deltaTime;
 
@@ -99,7 +114,7 @@ public class EnemyShooterAdvancedAI : MonoBehaviour
     private float GetNextShootDelay()
     {
         float noiseValue = GetPerlinNoise(0f);
-        float normalizedNoise = (noiseValue - 0.5f) * 2f; // [-1, 1]
+        float normalizedNoise = (noiseValue - 0.5f) * 2f;
         float delayModifier = 1f + normalizedNoise * shootRateNoiseAmount;
         float delay = baseShootRate * delayModifier;
         return Mathf.Max(0.1f, delay);
@@ -107,38 +122,94 @@ public class EnemyShooterAdvancedAI : MonoBehaviour
 
     private void ShootProjectile()
     {
+        if (!animator) return;
+
+        var st = animator.GetCurrentAnimatorStateInfo(0);
+        if (st.IsName(shootStateName)) return;
+
+        firedThisCycle = false;
+
+        animator.SetBool(shootBoolName, true);
+
+        if (shootFailsafeCoro != null) StopCoroutine(shootFailsafeCoro);
+        shootFailsafeCoro = StartCoroutine(ResetShootBoolFailsafe(shootClipMaxLength));
+
+        if (fireFailsafeIfNoEvent)
+        {
+            if (fireFailsafeCoro != null) StopCoroutine(fireFailsafeCoro);
+            fireFailsafeCoro = StartCoroutine(FireFailsafeAfter(fireFailsafeDelay));
+        }
+    }
+
+    private System.Collections.IEnumerator ResetShootBoolFailsafe(float t)
+    {
+        yield return new WaitForSeconds(t);
+        if (animator) animator.SetBool(shootBoolName, false);
+        shootFailsafeCoro = null;
+        if (showDebugInfo) Debug.Log("[Failsafe] is_shooting resetado por tempo.");
+    }
+
+    private System.Collections.IEnumerator FireFailsafeAfter(float t)
+    {
+        yield return new WaitForSeconds(t);
+        if (!firedThisCycle)
+        {
+            if (showDebugInfo) Debug.Log("[Failsafe] Disparando Fire() por ausência de Animation Event.");
+            Fire();
+        }
+        fireFailsafeCoro = null;
+    }
+
+    public void OnShootFire()
+    {
+        if (firedThisCycle) return;
+        if (showDebugInfo) Debug.Log("[AnimEvent] OnShootFire()");
+        Fire();
+    }
+
+    public void OnShootAnimEnd()
+    {
+        if (animator) animator.SetBool(shootBoolName, false);
+        if (shootFailsafeCoro != null) { StopCoroutine(shootFailsafeCoro); shootFailsafeCoro = null; }
+        if (showDebugInfo) Debug.Log("[AnimEvent] Shoot terminou. Voltando para Idle.");
+    }
+
+    private void Fire()
+    {
+        firedThisCycle = true;
+
         Transform aimTarget = CalculateAimTarget(out bool willHit, out Vector3 aimPointPosition);
 
         float heightNoise = GetPerlinNoise(100f);
         float heightVariation = 1f + ((heightNoise - 0.5f) * 2f * heightNoiseAmount);
         float projectileMaxHeight = Mathf.Max(0.05f, baseProjectileMaxHeight * heightVariation);
 
-        Projectile projectile = Instantiate(projectilePrefab, transform.position, Quaternion.identity)
-            .GetComponent<Projectile>();
+        Vector3 spawnPos = muzzleTransform ? muzzleTransform.position : transform.position;
+        Quaternion spawnRot = Quaternion.identity;
 
-        projectile.InitializeProjectile(
+        var projComp = Instantiate(projectilePrefab, spawnPos, spawnRot).GetComponent<Projectile>();
+
+        projComp.InitializeProjectile(
             aimTarget,
             baseProjectileMaxMoveSpeed,
             projectileMaxHeight,
             baseProjectileRotationSpeed
         );
 
-        projectile.InitializeAnimationCurves(
+        projComp.InitializeAnimationCurves(
             trajectoryAnimationCurve,
             axisCorrectionAnimationCurve,
             projectileSpeedAnimationCurve
         );
 
         if (aimVisualizer != null)
-        {
             aimVisualizer.RecordShot(aimPointPosition, willHit);
-        }
 
         if (showDebugInfo)
         {
             string result = willHit ? "✓ HIT" : "✗ MISS";
             float aimOffset = Vector3.Distance(target.position, aimPointPosition);
-            Debug.Log($"Enemy AI shot {result} - Speed: {baseProjectileMaxMoveSpeed:F2}, Height: {projectileMaxHeight:F2}, Aim Offset: {aimOffset:F2}");
+            Debug.Log($"[Fire] Enemy AI shot {result} - Speed: {baseProjectileMaxMoveSpeed:F2}, Height: {projectileMaxHeight:F2}, Aim Offset: {aimOffset:F2}");
         }
     }
 
@@ -149,9 +220,7 @@ public class EnemyShooterAdvancedAI : MonoBehaviour
         willHit = roll <= clampedAccuracy;
 
         if (showDebugInfo)
-        {
             Debug.Log($"Accuracy Roll: {roll:F3} | Accuracy: {clampedAccuracy:F3} | Will Hit: {willHit}");
-        }
 
         if (willHit || target == null)
         {
@@ -170,10 +239,7 @@ public class EnemyShooterAdvancedAI : MonoBehaviour
         Vector2 aimDirection = toTarget2D.sqrMagnitude > 0.0001f ? toTarget2D.normalized : Vector2.right;
         Vector2 perpendicular = new Vector2(-aimDirection.y, aimDirection.x);
 
-        if (perpendicular.sqrMagnitude < 0.0001f)
-        {
-            perpendicular = Vector2.up;
-        }
+        if (perpendicular.sqrMagnitude < 0.0001f) perpendicular = Vector2.up;
 
         perpendicular = perpendicular.normalized * missDistance * (Random.value < 0.5f ? -1f : 1f);
         float verticalNoise = Random.Range(-0.25f, 0.25f) * missDistance;
@@ -200,10 +266,7 @@ public class EnemyShooterAdvancedAI : MonoBehaviour
 
     private void OnDrawGizmos()
     {
-        if (target == null)
-        {
-            return;
-        }
+        if (target == null) return;
 
         Gizmos.color = Color.yellow;
         Gizmos.DrawLine(transform.position, target.position);
@@ -212,10 +275,7 @@ public class EnemyShooterAdvancedAI : MonoBehaviour
 
     private void OnDrawGizmosSelected()
     {
-        if (target == null || !showDebugInfo)
-        {
-            return;
-        }
+        if (target == null || !showDebugInfo) return;
 
         Gizmos.color = Color.green;
         Gizmos.DrawWireSphere(target.position, 0.5f);
@@ -275,9 +335,7 @@ public class EnemyShooterAdvancedAI : MonoBehaviour
         CacheSettingsFromFields();
 
         if (Application.isPlaying && resetShootTimer)
-        {
             shootTimer = GetNextShootDelay();
-        }
     }
 
     private void CacheSettingsFromFields()
