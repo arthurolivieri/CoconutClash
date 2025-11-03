@@ -119,6 +119,178 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
+--- !u!1 &219918341 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 4240023484200639128, guid: 02e224077a16e4b9baa4de64437e9b16, type: 3}
+  m_PrefabInstance: {fileID: 401691974682285747}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &219918342
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 219918341}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1c9cec27c9a0e374892272d4136e1c72, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  aiController: {fileID: 219918343}
+  assignControllerOnAwake: 1
+  applyOnStart: 1
+  defaultDifficulty: 2
+  logDifficultyChanges: 1
+  difficultyProfiles:
+  - level: 0
+    note: 
+    settings:
+      accuracy: 0.25
+      minMissDistance: 2.5
+      maxMissDistance: 4.5
+      shootInterval: 3.8
+      shootIntervalJitter: 0.35
+      projectileSpeed: 8
+      projectileArcHeight: 0.55
+      projectileSpin: 300
+      heightNoise: 0.35
+  - level: 1
+    note: 
+    settings:
+      accuracy: 0.45
+      minMissDistance: 2
+      maxMissDistance: 4
+      shootInterval: 3.2
+      shootIntervalJitter: 0.3
+      projectileSpeed: 9
+      projectileArcHeight: 0.5
+      projectileSpin: 320
+      heightNoise: 0.3
+  - level: 2
+    note: 
+    settings:
+      accuracy: 0.65
+      minMissDistance: 1.6
+      maxMissDistance: 3.2
+      shootInterval: 2.6
+      shootIntervalJitter: 0.28
+      projectileSpeed: 10
+      projectileArcHeight: 0.5
+      projectileSpin: 360
+      heightNoise: 0.25
+  - level: 3
+    note: 
+    settings:
+      accuracy: 0.8
+      minMissDistance: 1.2
+      maxMissDistance: 2.5
+      shootInterval: 2
+      shootIntervalJitter: 0.25
+      projectileSpeed: 11
+      projectileArcHeight: 0.45
+      projectileSpin: 420
+      heightNoise: 0.2
+  - level: 4
+    note: 
+    settings:
+      accuracy: 0.9
+      minMissDistance: 1
+      maxMissDistance: 2
+      shootInterval: 1.8
+      shootIntervalJitter: 0.2
+      projectileSpeed: 12
+      projectileArcHeight: 0.4
+      projectileSpin: 460
+      heightNoise: 0.15
+  - level: 5
+    note: 
+    settings:
+      accuracy: 0.95
+      minMissDistance: 0.8
+      maxMissDistance: 1.5
+      shootInterval: 1.5
+      shootIntervalJitter: 0.15
+      projectileSpeed: 13
+      projectileArcHeight: 0.35
+      projectileSpin: 500
+      heightNoise: 0.12
+  applyOverrideAfterPreset: 0
+  overrideSettings:
+    accuracy: 0
+    minMissDistance: 0
+    maxMissDistance: 0
+    shootInterval: 0
+    shootIntervalJitter: 0
+    projectileSpeed: 0
+    projectileArcHeight: 0
+    projectileSpin: 0
+    heightNoise: 0
+--- !u!114 &219918343
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 219918341}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5baceef345cc4d944bea652a73c4b41f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  projectilePrefab: {fileID: 7057132163050103756, guid: 1ca53cc9f42d44031b96983a70357562, type: 3}
+  target: {fileID: 3875975810400074916, guid: 5c4d80730d28a44bea48eaf96aa57f69, type: 3}
+  baseShootRate: 2
+  shootRateNoiseAmount: 0.25
+  baseProjectileMaxMoveSpeed: 10
+  baseProjectileMaxHeight: 0.5
+  baseProjectileRotationSpeed: 360
+  aimAccuracy: 0.5
+  minAimOffsetDistance: 1
+  maxAimOffsetDistance: 4
+  noiseSpeed: 1
+  heightNoiseAmount: 0.3
+  trajectoryAnimationCurve:
+    serializedVersion: 2
+    m_Curve: []
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  axisCorrectionAnimationCurve:
+    serializedVersion: 2
+    m_Curve: []
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  projectileSpeedAnimationCurve:
+    serializedVersion: 2
+    m_Curve: []
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  showDebugInfo: 0
+--- !u!114 &219918344
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 219918341}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6993ffd117a08fa49b4cf9f6a200042c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  showAimLine: 1
+  showAccuracyCircle: 1
+  showPredictedTrajectory: 0
+  aimLineColor: {r: 0, g: 1, b: 1, a: 1}
+  accuracyCircleColor: {r: 1, g: 1, b: 0, a: 0.3}
+  hitColor: {r: 0, g: 1, b: 0, a: 1}
+  missColor: {r: 1, g: 0, b: 0, a: 1}
+  aiController: {fileID: 0}
+  target: {fileID: 0}
+  trajectoryPointCount: 20
+  trajectoryTimeStep: 0.1
 --- !u!1 &519420028
 GameObject:
   m_ObjectHideFlags: 0
@@ -358,102 +530,154 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   projectilePrefab: {fileID: 1547535765}
-  target: {fileID: 1994384046}
-  shootRate: 1
-  projectileMaxMoveSpeed: 0
-  projectileMaxHeight: 0
+  minLaunchSpeed: 5
+  maxLaunchSpeed: 20
+  maxChargeDistance: 10
+  gravityStrength: 9
   projectileRotationSpeed: 0
-  trajectoryAnimationCurve:
-    serializedVersion: 2
-    m_Curve:
-    - serializedVersion: 3
-      time: 0
-      value: 0
-      inSlope: 2
-      outSlope: 2
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    - serializedVersion: 3
-      time: 0.5
-      value: 0.5
-      inSlope: 0.0025806278
-      outSlope: 0.0025806278
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0.33333334
-      outWeight: 0.66637444
-    - serializedVersion: 3
-      time: 0.9946764
-      value: -0.0037748178
-      inSlope: -2.1924644
-      outSlope: -2.1924644
-      tangentMode: 0
-      weightedMode: 1
-      inWeight: 0.25856853
-      outWeight: 0.33333334
-    m_PreInfinity: 2
-    m_PostInfinity: 2
-    m_RotationOrder: 4
-  axisCorrectionAnimationCurve:
-    serializedVersion: 2
-    m_Curve:
-    - serializedVersion: 3
-      time: 0
-      value: 0
-      inSlope: 1
-      outSlope: 1
-      tangentMode: 34
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    - serializedVersion: 3
-      time: 1
-      value: 1
-      inSlope: 1
-      outSlope: 1
-      tangentMode: 34
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    m_PreInfinity: 2
-    m_PostInfinity: 2
-    m_RotationOrder: 4
-  projectileSpeedAnimationCurve:
-    serializedVersion: 2
-    m_Curve:
-    - serializedVersion: 3
-      time: 0
-      value: 1
-      inSlope: -1.1719326
-      outSlope: -1.1719326
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0.06775068
-    - serializedVersion: 3
-      time: 1
-      value: 1
-      inSlope: 2
-      outSlope: 2
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    m_PreInfinity: 2
-    m_PostInfinity: 2
-    m_RotationOrder: 4
+--- !u!114 &1182712017
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1182712015}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5a316c2e7b3db410c94f057a7575d249, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  maxDistance: 4
+--- !u!120 &1182712018
+LineRenderer:
+  serializedVersion: 2
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1182712015}
+  m_Enabled: 1
+  m_CastShadows: 1
+  m_ReceiveShadows: 1
+  m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
+  m_MotionVectors: 0
+  m_LightProbeUsage: 0
+  m_ReflectionProbeUsage: 0
+  m_RayTracingMode: 0
+  m_RayTraceProcedural: 0
+  m_RayTracingAccelStructBuildFlagsOverride: 0
+  m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
+  m_RenderingLayerMask: 1
+  m_RendererPriority: 0
+  m_Materials:
+  - {fileID: 0}
+  m_StaticBatchInfo:
+    firstSubMesh: 0
+    subMeshCount: 0
+  m_StaticBatchRoot: {fileID: 0}
+  m_ProbeAnchor: {fileID: 0}
+  m_LightProbeVolumeOverride: {fileID: 0}
+  m_ScaleInLightmap: 1
+  m_ReceiveGI: 1
+  m_PreserveUVs: 0
+  m_IgnoreNormalsForChartDetection: 0
+  m_ImportantGI: 0
+  m_StitchLightmapSeams: 1
+  m_SelectedEditorRenderState: 3
+  m_MinimumChartSize: 4
+  m_AutoUVMaxDistance: 0.5
+  m_AutoUVMaxAngle: 89
+  m_LightmapParameters: {fileID: 0}
+  m_SortingLayerID: 0
+  m_SortingLayer: 0
+  m_SortingOrder: 0
+  m_Positions:
+  - {x: 0, y: 0, z: 0}
+  - {x: 0, y: 0, z: 1}
+  m_Parameters:
+    serializedVersion: 3
+    widthMultiplier: 1
+    widthCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0.33333334
+        outWeight: 0.33333334
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    colorGradient:
+      serializedVersion: 2
+      key0: {r: 1, g: 1, b: 1, a: 1}
+      key1: {r: 1, g: 1, b: 1, a: 1}
+      key2: {r: 0, g: 0, b: 0, a: 0}
+      key3: {r: 0, g: 0, b: 0, a: 0}
+      key4: {r: 0, g: 0, b: 0, a: 0}
+      key5: {r: 0, g: 0, b: 0, a: 0}
+      key6: {r: 0, g: 0, b: 0, a: 0}
+      key7: {r: 0, g: 0, b: 0, a: 0}
+      ctime0: 0
+      ctime1: 65535
+      ctime2: 0
+      ctime3: 0
+      ctime4: 0
+      ctime5: 0
+      ctime6: 0
+      ctime7: 0
+      atime0: 0
+      atime1: 65535
+      atime2: 0
+      atime3: 0
+      atime4: 0
+      atime5: 0
+      atime6: 0
+      atime7: 0
+      m_Mode: 0
+      m_ColorSpace: -1
+      m_NumColorKeys: 2
+      m_NumAlphaKeys: 2
+    numCornerVertices: 0
+    numCapVertices: 0
+    alignment: 0
+    textureMode: 0
+    textureScale: {x: 1, y: 1}
+    shadowBias: 0.5
+    generateLightingData: 0
+  m_MaskInteraction: 0
+  m_UseWorldSpace: 1
+  m_Loop: 0
+  m_ApplyActiveColorSpace: 1
 --- !u!1 &1547535765 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 7057132163050103756, guid: 1ca53cc9f42d44031b96983a70357562, type: 3}
   m_PrefabInstance: {fileID: 8316038000028746785}
   m_PrefabAsset: {fileID: 0}
---- !u!4 &1994384046 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: 8240532970029282405, guid: 02e224077a16e4b9baa4de64437e9b16, type: 3}
-  m_PrefabInstance: {fileID: 401691974682285747}
+--- !u!114 &1547535766
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1547535765}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1f18dd6fdcf861942858787541b8672c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  enableTrail: 1
+  trailDuration: 2
+  trailColor: {r: 1, g: 0.5, b: 0, a: 0.5}
+  trailWidth: 0.1
+  maxTrailPoints: 50
+  minDistanceBetweenPoints: 0.1
 --- !u!1001 &401691974682285747
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -509,7 +733,16 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 4240023484200639128, guid: 02e224077a16e4b9baa4de64437e9b16, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 219918344}
+    - targetCorrespondingSourceObject: {fileID: 4240023484200639128, guid: 02e224077a16e4b9baa4de64437e9b16, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 219918343}
+    - targetCorrespondingSourceObject: {fileID: 4240023484200639128, guid: 02e224077a16e4b9baa4de64437e9b16, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 219918342}
   m_SourcePrefab: {fileID: 100100000, guid: 02e224077a16e4b9baa4de64437e9b16, type: 3}
 --- !u!1001 &8316038000028746785
 PrefabInstance:
@@ -566,7 +799,10 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 7057132163050103756, guid: 1ca53cc9f42d44031b96983a70357562, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1547535766}
   m_SourcePrefab: {fileID: 100100000, guid: 1ca53cc9f42d44031b96983a70357562, type: 3}
 --- !u!1001 &8391242532841779658
 PrefabInstance:
@@ -627,6 +863,12 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 8938343246843896107, guid: 5c4d80730d28a44bea48eaf96aa57f69, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1182712016}
+    - targetCorrespondingSourceObject: {fileID: 8938343246843896107, guid: 5c4d80730d28a44bea48eaf96aa57f69, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1182712018}
+    - targetCorrespondingSourceObject: {fileID: 8938343246843896107, guid: 5c4d80730d28a44bea48eaf96aa57f69, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1182712017}
   m_SourcePrefab: {fileID: 100100000, guid: 5c4d80730d28a44bea48eaf96aa57f69, type: 3}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
