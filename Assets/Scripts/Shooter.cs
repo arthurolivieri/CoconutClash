@@ -5,26 +5,28 @@ public class Shooter : MonoBehaviour
     [Header("Projectile Prefab")]
     [SerializeField] private GameObject projectilePrefab;
 
-    // ---------- Manual shooting ----------
-    [Header("Manual Shoot (Mouse)")]
-    [SerializeField] private bool useManualShooting = true; // ON = manual; OFF = AI
+    [Header("Mode")]
+    [SerializeField] private bool useManualShooting = true; // ON = Manual / OFF = AI
+
+    // -------- Manual settings (physics) --------
+    [Header("Manual (Physics)")]
     [SerializeField] private float minLaunchSpeed = 5f;
     [SerializeField] private float maxLaunchSpeed = 20f;
     [SerializeField] private float maxChargeDistance = 10f;
-    [SerializeField] private float gravityStrength = 9f;
+    [SerializeField] private float gravityStrength = 9f;    // m/s²
     [SerializeField] private float projectileRotationSpeed = 180f;
 
-    // ---------- AI shooting ----------
-    [Header("AI Shoot (Optional if you use EnemyShooterAdvancedAI elsewhere)")]
+    // -------- AI settings (curve) --------
+    [Header("AI (Curve)")]
     [SerializeField] private Transform target;
-    [SerializeField] private float shootRate = 1f;         // seconds between shots
+    [SerializeField] private float shootRate = 1f;
     [SerializeField] private float projectileMaxMoveSpeed = 6f;
     [SerializeField] private float projectileMaxHeight = 0.5f;
     [SerializeField] private AnimationCurve trajectoryAnimationCurve;
     [SerializeField] private AnimationCurve axisCorrectionAnimationCurve;
     [SerializeField] private AnimationCurve projectileSpeedAnimationCurve;
 
-    private float shootTimer = 0f;
+    private float shootTimer;
     private Camera mainCam;
 
     private void Awake()
@@ -32,72 +34,48 @@ public class Shooter : MonoBehaviour
         mainCam = Camera.main;
     }
 
-    private void Start()
-    {
-        Debug.Log($"[Shooter] Start - Prefab: {(projectilePrefab ? projectilePrefab.name : "NULL")} | Mode: {(useManualShooting ? "Manual" : "AI")}");
-        if (!useManualShooting)
-        {
-            Debug.Log($"[Shooter] AI target: {(target ? target.name : "NULL")} | shootRate: {shootRate} | maxSpeed: {projectileMaxMoveSpeed}");
-        }
-    }
-
     private void Update()
     {
-        if (useManualShooting)
-        {
-            HandleManualShooting();
-        }
-        else
-        {
-            HandleAIShooting();
-        }
+        if (useManualShooting) HandleManual();
+        else HandleAI();
     }
 
     // =========================
-    //       MANUAL MODE
+    //        MANUAL
     // =========================
-    private void HandleManualShooting()
+    private void HandleManual()
     {
         if (projectilePrefab == null) return;
+        if (!Input.GetMouseButtonDown(0)) return;
 
-        if (Input.GetMouseButtonDown(0))
+        if (mainCam == null)
         {
-            if (mainCam == null)
-            {
-                Debug.LogError("[Shooter] No MainCamera found. Tag your camera as 'MainCamera'.");
-                return;
-            }
-
-            // spawn position (usually at player muzzle)
-            Vector3 startPos = transform.position;
-            startPos.z = 0f;
-
-            // mouse world
-            Vector3 mouseWorld = mainCam.ScreenToWorldPoint(Input.mousePosition);
-            mouseWorld.z = 0f;
-
-            // direction + strength
-            Vector2 dir = (mouseWorld - startPos).normalized;
-            float dist = Vector2.Distance(startPos, mouseWorld);
-            float t = Mathf.Clamp01(dist / Mathf.Max(0.0001f, maxChargeDistance));
-            float speed = Mathf.Lerp(minLaunchSpeed, maxLaunchSpeed, t);
-            Vector2 initialVelocity = dir * speed;
-
-            // instantiate
-            GameObject go = Instantiate(projectilePrefab, startPos, Quaternion.identity);
-            Projectile proj = go.GetComponent<Projectile>();
-            if (proj == null) proj = go.AddComponent<Projectile>();
-
-            // manual init (simple parabola)
-            proj.Initialize(initialVelocity, gravityStrength, projectileRotationSpeed);
-            Debug.Log("[Shooter] Manual projectile fired.");
+            Debug.LogError("[Shooter] No MainCamera found. Tag your camera as 'MainCamera'.");
+            return;
         }
+
+        Vector3 startPos = transform.position; startPos.z = 0f;
+        Vector3 mouseWorld = mainCam.ScreenToWorldPoint(Input.mousePosition); mouseWorld.z = 0f;
+
+        Vector2 dir = (mouseWorld - startPos).normalized;
+        float dist = Vector2.Distance(startPos, mouseWorld);
+        float t = Mathf.Clamp01(dist / Mathf.Max(0.0001f, maxChargeDistance));
+        float speed = Mathf.Lerp(minLaunchSpeed, maxLaunchSpeed, t);
+        Vector2 initialVelocity = dir * speed;
+
+        GameObject go = Instantiate(projectilePrefab, startPos, Quaternion.identity);
+        var proj = go.GetComponent<Projectile>();
+        if (proj == null) proj = go.AddComponent<Projectile>();
+
+        // Manual physics init → uses Rigidbody2D (collides with walls)
+        proj.Initialize(initialVelocity, gravityStrength, projectileRotationSpeed);
+        // Debug.Log("[Shooter] Manual projectile fired.");
     }
 
     // =========================
-    //         AI MODE
+    //          AI
     // =========================
-    private void HandleAIShooting()
+    private void HandleAI()
     {
         if (projectilePrefab == null || target == null) return;
 
@@ -105,18 +83,14 @@ public class Shooter : MonoBehaviour
         if (shootTimer < shootRate) return;
         shootTimer = 0f;
 
-        // Spawn + initialize for curve/target path
         GameObject go = Instantiate(projectilePrefab, transform.position, Quaternion.identity);
-        Projectile projectile = go.GetComponent<Projectile>();
-        if (projectile == null) projectile = go.AddComponent<Projectile>();
+        var proj = go.GetComponent<Projectile>();
+        if (proj == null) proj = go.AddComponent<Projectile>();
 
-        projectile.InitializeProjectile(target, projectileMaxMoveSpeed, projectileMaxHeight, projectileRotationSpeed);
+        proj.InitializeProjectile(target, projectileMaxMoveSpeed, projectileMaxHeight, projectileRotationSpeed);
+        // Curves optional — defaults applied in Projectile if null
+        proj.InitializeAnimationCurves(trajectoryAnimationCurve, axisCorrectionAnimationCurve, projectileSpeedAnimationCurve);
 
-        // Curves can be null; Projectile adds safe defaults so AI still works.
-        projectile.InitializeAnimationCurves(trajectoryAnimationCurve,
-                                             axisCorrectionAnimationCurve,
-                                             projectileSpeedAnimationCurve);
-
-        Debug.Log("[Shooter] AI projectile fired.");
+        // Debug.Log("[Shooter] AI projectile fired.");
     }
 }
