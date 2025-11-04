@@ -14,8 +14,29 @@ public class Shooter : MonoBehaviour
     [SerializeField] private float minLaunchSpeed = 5f;
     [SerializeField] private float maxLaunchSpeed = 20f;
     [SerializeField] private float maxChargeDistance = 10f;
-    [SerializeField] private float gravityStrength = 9f;    // m/s²
+    [SerializeField] private float gravityStrength = 9f;    
     [SerializeField] private float projectileRotationSpeed = 180f;
+
+    [Header("Muzzle (optional)")]
+    [SerializeField] private Transform muzzleTransform;
+
+    // ===== ANIMAÇÃO =====
+    [Header("Animation")]
+    [SerializeField] private Animator animator;
+    [SerializeField] private string shootBoolName = "is_shooting";
+    [SerializeField] private string shootStateName = "Shoot";
+    [SerializeField] private float shootClipMaxLength = 0.6f;
+    [SerializeField] private bool fireFailsafeIfNoEvent = true;
+    [SerializeField] private float fireFailsafeDelay = 0.15f;
+
+    private bool firedThisCycle = false;
+    private Coroutine shootFailsafeCoro;
+    private Coroutine fireFailsafeCoro;
+
+    // ===== Turn-Based =====
+    [Header("Turn Based")]
+    [SerializeField] private bool restrictManualShootingToTurn = false;
+    private bool manualTurnEnabled = true;
 
     // -------- AI settings (curve) --------
     [Header("AI (Curve)")]
@@ -28,20 +49,21 @@ public class Shooter : MonoBehaviour
     [SerializeField] private AnimationCurve projectileSpeedAnimationCurve;
 
     [Header("Physics Setup")]
-    [SerializeField] private int projectileLayer = 10; // PlayerProjectile layer (configure no Inspector)
-    
-    [Header("Turn Control")]
-    [SerializeField] private bool restrictManualShootingToTurn = false;
+    [SerializeField] private int projectileLayer = 10;
 
-    private float shootTimer;
     private Camera mainCam;
-    private bool manualTurnEnabled = true;
+    private float shootTimer;
+
+    // Mira armazenada
+    private Vector3 cachedStartPos;
+    private Vector3 cachedMouseWorldPos;
 
     public event Action ManualShotFired;
 
     private void Awake()
     {
         mainCam = Camera.main;
+        if (!animator) animator = GetComponent<Animator>();
     }
 
     private void Update()
@@ -50,50 +72,88 @@ public class Shooter : MonoBehaviour
         else HandleAI();
     }
 
-    // =========================
-    //        MANUAL
-    // =========================
+    // ========================= MANUAL =========================
     private void HandleManual()
     {
+        if (!Input.GetMouseButtonDown(0)) return;
         if (projectilePrefab == null) return;
         if (restrictManualShootingToTurn && !manualTurnEnabled) return;
-        if (!Input.GetMouseButtonDown(0)) return;
 
-        if (mainCam == null)
+        cachedStartPos = muzzleTransform ? muzzleTransform.position : transform.position;
+        cachedStartPos.z = 0f;
+
+        cachedMouseWorldPos = mainCam.ScreenToWorldPoint(Input.mousePosition);
+        cachedMouseWorldPos.z = 0f;
+
+        StartShootCycle();
+    }
+
+    private void StartShootCycle()
+    {
+        var st = animator.GetCurrentAnimatorStateInfo(0);
+        if (st.IsName(shootStateName)) return;
+
+        firedThisCycle = false;
+        animator.SetBool(shootBoolName, true);
+
+        if (shootFailsafeCoro != null) StopCoroutine(shootFailsafeCoro);
+        shootFailsafeCoro = StartCoroutine(ResetShootBoolFailsafe(shootClipMaxLength));
+
+        if (fireFailsafeIfNoEvent)
         {
-            Debug.LogError("[Shooter] No MainCamera found. Tag your camera as 'MainCamera'.");
-            return;
+            if (fireFailsafeCoro != null) StopCoroutine(fireFailsafeCoro);
+            fireFailsafeCoro = StartCoroutine(FireFailsafeAfter(fireFailsafeDelay));
         }
+    }
 
-        Vector3 startPos = transform.position; startPos.z = 0f;
-        Vector3 mouseWorld = mainCam.ScreenToWorldPoint(Input.mousePosition); mouseWorld.z = 0f;
+    // ===== Animation Events =====
+    public void OnShootFire()
+    {
+        if (firedThisCycle) return;
+        FireManualProjectile();
+    }
 
-        Vector2 dir = (mouseWorld - startPos).normalized;
-        float dist = Vector2.Distance(startPos, mouseWorld);
+    public void OnShootAnimEnd()
+    {
+        animator.SetBool(shootBoolName, false);
+        if (shootFailsafeCoro != null) StopCoroutine(shootFailsafeCoro);
+    }
+
+    private System.Collections.IEnumerator ResetShootBoolFailsafe(float t)
+    {
+        yield return new WaitForSeconds(t);
+        animator.SetBool(shootBoolName, false);
+        shootFailsafeCoro = null;
+    }
+
+    private System.Collections.IEnumerator FireFailsafeAfter(float t)
+    {
+        yield return new WaitForSeconds(t);
+        if (!firedThisCycle) FireManualProjectile();
+        fireFailsafeCoro = null;
+    }
+
+    private void FireManualProjectile()
+    {
+        firedThisCycle = true;
+
+        Vector2 dir = (cachedMouseWorldPos - cachedStartPos).normalized;
+        float dist = Vector2.Distance(cachedStartPos, cachedMouseWorldPos);
         float t = Mathf.Clamp01(dist / Mathf.Max(0.0001f, maxChargeDistance));
         float speed = Mathf.Lerp(minLaunchSpeed, maxLaunchSpeed, t);
         Vector2 initialVelocity = dir * speed;
 
-        GameObject go = Instantiate(projectilePrefab, startPos, Quaternion.identity);
-        
-        // CONFIGURAR LAYER: Evitar colisão com o próprio atirador (player)
-        if (projectileLayer > 0)
-        {
-            go.layer = projectileLayer;
-        }
-        
-        var proj = go.GetComponent<Projectile>();
-        if (proj == null) proj = go.AddComponent<Projectile>();
+        GameObject go = Instantiate(projectilePrefab, cachedStartPos, Quaternion.identity);
+        if (projectileLayer > 0) go.layer = projectileLayer;
 
-        // Manual physics init → uses Rigidbody2D (collides with walls)
+        var proj = go.GetComponent<Projectile>();
+        if (!proj) proj = go.AddComponent<Projectile>();
+
         proj.Initialize(initialVelocity, gravityStrength, projectileRotationSpeed);
         ManualShotFired?.Invoke();
-        // Debug.Log("[Shooter] Manual projectile fired.");
     }
 
-    // =========================
-    //          AI
-    // =========================
+    // ========================= AI =========================
     private void HandleAI()
     {
         if (projectilePrefab == null || target == null) return;
@@ -103,23 +163,16 @@ public class Shooter : MonoBehaviour
         shootTimer = 0f;
 
         GameObject go = Instantiate(projectilePrefab, transform.position, Quaternion.identity);
-        
-        // CONFIGURAR LAYER: Evitar colisão com o próprio atirador (player)
-        if (projectileLayer > 0)
-        {
-            go.layer = projectileLayer;
-        }
-        
+        if (projectileLayer > 0) go.layer = projectileLayer;
+
         var proj = go.GetComponent<Projectile>();
-        if (proj == null) proj = go.AddComponent<Projectile>();
+        if (!proj) proj = go.AddComponent<Projectile>();
 
         proj.InitializeProjectile(target, projectileMaxMoveSpeed, projectileMaxHeight, projectileRotationSpeed);
-        // Curves optional — defaults applied in Projectile if null
         proj.InitializeAnimationCurves(trajectoryAnimationCurve, axisCorrectionAnimationCurve, projectileSpeedAnimationCurve);
-
-        // Debug.Log("[Shooter] AI projectile fired.");
     }
 
+    // ========================= TURN SYSTEM SUPPORT =========================
     public void SetRestrictManualShootingToTurn(bool restrict)
     {
         restrictManualShootingToTurn = restrict;

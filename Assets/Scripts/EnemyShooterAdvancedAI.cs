@@ -5,6 +5,8 @@ public class EnemyShooterAdvancedAI : MonoBehaviour
     [Header("Projectile Settings")]
     [SerializeField] private GameObject projectilePrefab;
     [SerializeField] private Transform target;
+    [Tooltip("Opcional: ponto exato de saída do projétil (ex.: ponta da arma).")]
+    [SerializeField] private Transform muzzleTransform;
 
     [Header("Shooting Rhythm")]
     [SerializeField] private float baseShootRate = 2f;
@@ -33,8 +35,8 @@ public class EnemyShooterAdvancedAI : MonoBehaviour
     [SerializeField] private bool showDebugInfo = false;
 
     [Header("Physics Control")]
-    [SerializeField] private bool usePhysicsMode = false; // BOTÃO PRINCIPAL para ativar física
-    [SerializeField] private float physicsGravityStrength = 9.81f; // Força da gravidade
+    [SerializeField] private bool usePhysicsMode = false; // liga/desliga disparo físico
+    [SerializeField] private float physicsGravityStrength = 9.81f; // gravidade do disparo físico
     
     [Header("Area Effector Handling")]
     [SerializeField] private bool usePhysicsWhenAreaEffectorsDetected = true;
@@ -43,10 +45,29 @@ public class EnemyShooterAdvancedAI : MonoBehaviour
     [SerializeField] private float physicsLaunchSpeed = 0f;
 
     [Header("Physics Setup")]
-    [SerializeField] private int projectileLayer = 11; // EnemyProjectile layer (configure no Inspector)
+    [SerializeField] private int projectileLayer = 11; // EnemyProjectile layer
     
     [Header("Turn Control")]
     [SerializeField] private bool turnBasedControl = false;
+
+    // ===== ANIMAÇÃO =====
+    [Header("Animation")]
+    [SerializeField] private Animator animator;
+    [SerializeField] private string shootBoolName = "is_shooting";
+    [SerializeField] private string shootStateName = "Shoot";
+    [Tooltip("Failsafe: se o evento final não disparar, desliga o bool após este tempo (s).")]
+    [SerializeField] private float shootClipMaxLength = 0.6f;
+    [Tooltip("Se o evento de disparo não vier, dispara automaticamente após este atraso (s).")]
+    [SerializeField] private bool fireFailsafeIfNoEvent = true;
+    [SerializeField] private float fireFailsafeDelay = 0.2f;
+    [Tooltip("Reset automático do bool quando o normalizedTime do estado atinge este valor.")]
+    [Range(0.5f, 1f)]
+    [SerializeField] private float shootExitNormalizedTime = 0.95f;
+
+    private Coroutine shootFailsafeCoro;
+    private Coroutine fireFailsafeCoro;
+    private bool shootingCycleActive = false;
+    private bool firedThisCycle = false;
 
     [System.Serializable]
     public struct ShooterSettings
@@ -87,6 +108,7 @@ public class EnemyShooterAdvancedAI : MonoBehaviour
     private void Awake()
     {
         CacheSettingsFromFields();
+        if (!animator) animator = GetComponent<Animator>();
     }
 
     private void Start()
@@ -98,22 +120,36 @@ public class EnemyShooterAdvancedAI : MonoBehaviour
 
     private void Update()
     {
-        if (projectilePrefab == null || target == null)
+        if (projectilePrefab == null || target == null) return;
+
+        // Modo por turno: não agenda disparos automáticos
+        if (turnBasedControl) return;
+
+        // Só agenda novo tiro se NÃO estiver em um ciclo de tiro ativo
+        if (!shootingCycleActive)
         {
-            return;
+            shootTimer -= Time.deltaTime;
+            if (shootTimer <= 0f)
+            {
+                ShootProjectile(); // inicia ciclo de animação
+                shootTimer = GetNextShootDelay();
+            }
         }
 
-        if (turnBasedControl)
-        {
-            return;
-        }
+        // Segurança adicional: resetar bool no fim do estado se necessário
+        AutoResetShootBoolByState();
+    }
 
-        shootTimer -= Time.deltaTime;
+    private void AutoResetShootBoolByState()
+    {
+        if (!animator) return;
+        if (!animator.GetBool(shootBoolName)) return;
 
-        if (shootTimer <= 0f)
+        var st = animator.GetCurrentAnimatorStateInfo(0);
+        if (st.IsName(shootStateName) && st.normalizedTime >= shootExitNormalizedTime)
         {
-            ShootProjectile();
-            shootTimer = GetNextShootDelay();
+            animator.SetBool(shootBoolName, false);
+            if (showDebugInfo) Debug.Log($"[AutoReset] is_shooting=false (t={st.normalizedTime:0.00})");
         }
     }
 
@@ -126,95 +162,128 @@ public class EnemyShooterAdvancedAI : MonoBehaviour
         return Mathf.Max(0.1f, delay);
     }
 
+    /// <summary>
+    /// Agora inicia apenas o ciclo de animação; o disparo real ocorre em OnShootFire().
+    /// </summary>
     private void ShootProjectile()
     {
+        if (!animator) return;
+
+        var st = animator.GetCurrentAnimatorStateInfo(0);
+        if (st.IsName(shootStateName)) return; // já está atirando
+
+        shootingCycleActive = true;
+        firedThisCycle = false;
+
+        animator.SetBool(shootBoolName, true);
+
+        // failsafe para o bool não ficar preso
+        if (shootFailsafeCoro != null) StopCoroutine(shootFailsafeCoro);
+        shootFailsafeCoro = StartCoroutine(ResetShootBoolFailsafe(shootClipMaxLength));
+
+        // failsafe do disparo se o evento não vier
+        if (fireFailsafeIfNoEvent)
+        {
+            if (fireFailsafeCoro != null) StopCoroutine(fireFailsafeCoro);
+            fireFailsafeCoro = StartCoroutine(FireFailsafeAfter(fireFailsafeDelay));
+        }
+    }
+
+    private System.Collections.IEnumerator ResetShootBoolFailsafe(float t)
+    {
+        yield return new WaitForSeconds(t);
+        if (animator) animator.SetBool(shootBoolName, false);
+        shootFailsafeCoro = null;
+        if (showDebugInfo) Debug.Log("[Failsafe] is_shooting resetado por tempo.");
+    }
+
+    private System.Collections.IEnumerator FireFailsafeAfter(float t)
+    {
+        yield return new WaitForSeconds(t);
+        if (!firedThisCycle)
+        {
+            if (showDebugInfo) Debug.Log("[Failsafe] Fire() por ausência de Animation Event.");
+            DoFireNow(); // dispara mesmo sem evento
+        }
+        fireFailsafeCoro = null;
+    }
+
+    // === Animation Event: frame do disparo ===
+    public void OnShootFire()
+    {
+        if (firedThisCycle) return;
+        DoFireNow();
+    }
+
+    // === Animation Event: último frame do Shoot ===
+    public void OnShootAnimEnd()
+    {
+        if (animator) animator.SetBool(shootBoolName, false);
+        if (shootFailsafeCoro != null) { StopCoroutine(shootFailsafeCoro); shootFailsafeCoro = null; }
+        shootingCycleActive = false; // libera para agendar próximo tiro
+        if (showDebugInfo) Debug.Log("[AnimEvent] Shoot terminou → Idle");
+    }
+
+    /// <summary>
+    /// Disparo real (instancia e configura o projétil). Chamada por OnShootFire() ou failsafe.
+    /// </summary>
+    private void DoFireNow()
+    {
+        firedThisCycle = true;
+
+        // Recalcula mira no momento do disparo
         Transform aimTarget = CalculateAimTarget(out bool willHit, out Vector3 aimPointPosition);
 
-        // MUDANÇA: Usar usePhysicsMode OU detecção automática de effectors
+        // Escolhe modo
         bool usePhysicsShot = usePhysicsMode || ShouldUsePhysicsShot();
 
         float heightNoise = GetPerlinNoise(100f);
         float heightVariation = 1f + ((heightNoise - 0.5f) * 2f * heightNoiseAmount);
         float projectileMaxHeight = Mathf.Max(0.05f, baseProjectileMaxHeight * heightVariation);
 
-        GameObject projectileObj = Instantiate(projectilePrefab, transform.position, Quaternion.identity);
-        
-        // CONFIGURAR LAYER: Evitar colisão com o próprio atirador
-        if (projectileLayer > 0)
-        {
-            projectileObj.layer = projectileLayer;
-        }
-        
+        Vector3 spawnPos = muzzleTransform ? muzzleTransform.position : transform.position;
+        Quaternion spawnRot = Quaternion.identity;
+
+        GameObject projectileObj = Instantiate(projectilePrefab, spawnPos, spawnRot);
+        if (projectileLayer > 0) projectileObj.layer = projectileLayer;
+
         Projectile projectile = projectileObj.GetComponent<Projectile>();
 
         if (usePhysicsShot)
         {
-            // SEMPRE MIRAR NO PLAYER: aimPointPosition já considera acerto/erro
-            Vector2 targetDirection = (aimPointPosition - transform.position);
-            float distance = targetDirection.magnitude;
-            
-            if (distance < 0.1f)
-            {
-                targetDirection = Vector2.right;
-                distance = 1f;
-            }
-            else
-            {
-                targetDirection = targetDirection.normalized;
-            }
-
-            // VELOCIDADE CONTROLADA: Usar valores configuráveis diretamente
-            float baseSpeed = physicsLaunchSpeed > 0f ? physicsLaunchSpeed : baseProjectileMaxMoveSpeed;
-            
-            // ALEATORIEDADE SUAVE: Pequena variação para manter interessante
-            float speedVariation = Random.Range(0.9f, 1.1f); // ±10% de variação apenas
-            float launchSpeed = baseSpeed * speedVariation;
-            
-            // FORÇAR ARCO ALTO: Sempre usar ângulo alto para trajetória curva
+            // Física: calcula velocidade inicial para um arco alto
             float gravityToUse = physicsGravityStrength > 0f ? physicsGravityStrength : 9.81f;
-            float horizontalDistance = Mathf.Abs(aimPointPosition.x - transform.position.x);
-            float heightDifference = aimPointPosition.y - transform.position.y;
-            
-            // CÁLCULO DE ARCO ALTO: Sempre usar a solução de ângulo maior (trajetória alta)
+
+            float horizontalDistance = Mathf.Abs(aimPointPosition.x - spawnPos.x);
+            float heightDifference = aimPointPosition.y - spawnPos.y;
+
+            float baseSpeed = physicsLaunchSpeed > 0f ? physicsLaunchSpeed : baseProjectileMaxMoveSpeed;
+            float speedVar = Random.Range(0.9f, 1.1f);
+            float launchSpeed = baseSpeed * speedVar;
+
             float launchAngle = CalculateHighArcAngle(horizontalDistance, heightDifference, launchSpeed, gravityToUse);
-            
-            // GARANTIR ÂNGULO MÍNIMO: Nunca menor que 45°, ideal entre 45° e 75°
+
             if (float.IsNaN(launchAngle) || launchAngle < 45f)
             {
-                // Se não conseguir calcular ou ângulo muito baixo, forçar entre 45° e 60°
                 launchAngle = Random.Range(45f, 60f);
-                
-                // Ajustar velocidade para compensar ângulo fixo
                 launchSpeed = CalculateSpeedForAngle(horizontalDistance, heightDifference, launchAngle, gravityToUse);
-                
-                // Garantir velocidade dentro de limites razoáveis
                 launchSpeed = Mathf.Clamp(launchSpeed, baseSpeed * 0.5f, baseSpeed * 2f);
             }
-            
-            // LIMITAR ÂNGULO: Entre 45° e 75° para garantir arco sempre alto
+
             launchAngle = Mathf.Clamp(launchAngle, 45f, 75f);
-            
-            // Converter para radianos
             float angleRad = launchAngle * Mathf.Deg2Rad;
-            
-            // Determinar direção horizontal (esquerda ou direita)
-            float horizontalSign = (aimPointPosition.x >= transform.position.x) ? 1f : -1f;
-            
-            // Velocidade inicial com direção correta
+            float horizontalSign = (aimPointPosition.x >= spawnPos.x) ? 1f : -1f;
+
             Vector2 initialVelocity = new Vector2(
                 Mathf.Cos(angleRad) * launchSpeed * horizontalSign,
                 Mathf.Sin(angleRad) * launchSpeed
             );
 
-            projectile.Initialize(
-                initialVelocity,
-                gravityToUse,
-                baseProjectileRotationSpeed
-            );
+            projectile.Initialize(initialVelocity, gravityToUse, baseProjectileRotationSpeed);
         }
         else
         {
-            // Modo curve original (sem física)
+            // Modo curva original
             projectile.InitializeProjectile(
                 aimTarget,
                 baseProjectileMaxMoveSpeed,
@@ -230,21 +299,19 @@ public class EnemyShooterAdvancedAI : MonoBehaviour
         }
 
         if (aimVisualizer != null)
-        {
             aimVisualizer.RecordShot(aimPointPosition, willHit);
-        }
 
         if (showDebugInfo)
         {
             string mode = usePhysicsShot ? "Physics" : "Curve";
             string result = willHit ? "✓ HIT" : "✗ MISS";
-            float aimOffset = Vector3.Distance(target.position, aimPointPosition);
+            float aimOffset = target ? Vector3.Distance(target.position, aimPointPosition) : 0f;
             float loggedSpeed = usePhysicsShot
                 ? (physicsLaunchSpeed > 0f ? physicsLaunchSpeed : baseProjectileMaxMoveSpeed)
                 : baseProjectileMaxMoveSpeed;
-            float loggedHeight = usePhysicsShot ? projectileMaxHeight : projectileMaxHeight;
+            float loggedHeight = projectileMaxHeight;
             float loggedGravity = usePhysicsShot ? (physicsGravityStrength > 0f ? physicsGravityStrength : 9.81f) : 0f;
-            Debug.Log($"Enemy AI shot {result} ({mode}) - Speed: {loggedSpeed:F2}, Height: {loggedHeight:F2}, Gravity: {loggedGravity:F2}, Aim Offset: {aimOffset:F2}");
+            Debug.Log($"[EnemyAI Fire] {result} ({mode}) - v:{loggedSpeed:F2}, h:{loggedHeight:F2}, g:{loggedGravity:F2}, off:{aimOffset:F2}");
         }
     }
 
@@ -255,9 +322,7 @@ public class EnemyShooterAdvancedAI : MonoBehaviour
         willHit = roll <= clampedAccuracy;
 
         if (showDebugInfo)
-        {
-            Debug.Log($"Accuracy Roll: {roll:F3} | Accuracy: {clampedAccuracy:F3} | Will Hit: {willHit}");
-        }
+            Debug.Log($"Accuracy Roll: {roll:F3} | Acc: {clampedAccuracy:F3} | WillHit: {willHit}");
 
         if (willHit || target == null)
         {
@@ -276,10 +341,7 @@ public class EnemyShooterAdvancedAI : MonoBehaviour
         Vector2 aimDirection = toTarget2D.sqrMagnitude > 0.0001f ? toTarget2D.normalized : Vector2.right;
         Vector2 perpendicular = new Vector2(-aimDirection.y, aimDirection.x);
 
-        if (perpendicular.sqrMagnitude < 0.0001f)
-        {
-            perpendicular = Vector2.up;
-        }
+        if (perpendicular.sqrMagnitude < 0.0001f) perpendicular = Vector2.up;
 
         perpendicular = perpendicular.normalized * missDistance * (Random.value < 0.5f ? -1f : 1f);
         float verticalNoise = Random.Range(-0.25f, 0.25f) * missDistance;
@@ -304,130 +366,80 @@ public class EnemyShooterAdvancedAI : MonoBehaviour
         return noiseValue;
     }
 
-    // NOVO MÉTODO: Calcular ângulo de lançamento balístico real
+    // --- Balística: helpers ---
     private float CalculateLaunchAngle(float horizontalDistance, float heightDifference, float launchSpeed, float gravity)
     {
-        // Equação balística: tan(θ) = (v²±√(v⁴-g(gx²+2yv²))) / (gx)
-        // Usando a solução de menor ângulo (trajetória mais baixa)
-        
         float v2 = launchSpeed * launchSpeed;
         float v4 = v2 * v2;
         float gx = gravity * horizontalDistance;
         float gx2 = gx * horizontalDistance;
         float discriminant = v4 - gravity * (gx2 + 2 * heightDifference * v2);
-        
-        if (discriminant < 0)
-        {
-            // Sem solução real, target muito longe/alto para a velocidade
-            return float.NaN;
-        }
-        
+
+        if (discriminant < 0) return float.NaN;
+
         float sqrtDiscriminant = Mathf.Sqrt(discriminant);
-        
-        // Usar solução de menor ângulo (sinal negativo)
-        float tanAngle = (v2 - sqrtDiscriminant) / gx;
-        
+        float tanAngle = (v2 - sqrtDiscriminant) / gx; // menor ângulo
         return Mathf.Atan(tanAngle) * Mathf.Rad2Deg;
     }
 
-    // NOVO MÉTODO: Calcular ângulo ALTO para trajetória curva
     private float CalculateHighArcAngle(float horizontalDistance, float heightDifference, float launchSpeed, float gravity)
     {
-        // Equação balística: tan(θ) = (v²±√(v⁴-g(gx²+2yv²))) / (gx)
-        // Usando a solução de MAIOR ângulo (trajetória ALTA)
-        
-        if (horizontalDistance < 0.1f) return 45f; // Evitar divisão por zero
-        
+        if (horizontalDistance < 0.1f) return 45f;
+
         float v2 = launchSpeed * launchSpeed;
         float v4 = v2 * v2;
         float gx = gravity * horizontalDistance;
         float gx2 = gx * horizontalDistance;
         float discriminant = v4 - gravity * (gx2 + 2 * heightDifference * v2);
-        
-        if (discriminant < 0)
-        {
-            // Sem solução real, retornar ângulo alto padrão
-            return 50f;
-        }
-        
+
+        if (discriminant < 0) return 50f;
+
         float sqrtDiscriminant = Mathf.Sqrt(discriminant);
-        
-        // Usar solução de MAIOR ângulo (sinal POSITIVO) para arco alto
-        float tanAngle = (v2 + sqrtDiscriminant) / gx;
-        
+        float tanAngle = (v2 + sqrtDiscriminant) / gx; // maior ângulo
         float angle = Mathf.Atan(tanAngle) * Mathf.Rad2Deg;
-        
-        // Garantir que o ângulo seja alto (mínimo 45°)
         return Mathf.Max(angle, 45f);
     }
 
-    // NOVO MÉTODO: Calcular velocidade necessária para um ângulo específico
     private float CalculateSpeedForAngle(float horizontalDistance, float heightDifference, float angle, float gravity)
     {
-        if (horizontalDistance < 0.1f) return 10f; // Evitar divisão por zero
-        
+        if (horizontalDistance < 0.1f) return 10f;
+
         float angleRad = angle * Mathf.Deg2Rad;
         float tanAngle = Mathf.Tan(angleRad);
         float cosAngle = Mathf.Cos(angleRad);
-        
-        // Fórmula: v = √(gx² / (2cos²θ(x*tanθ - y)))
+
         float denominator = 2f * cosAngle * cosAngle * (horizontalDistance * tanAngle - heightDifference);
-        
-        if (denominator <= 0f) return 15f; // Fallback
-        
+        if (denominator <= 0f) return 15f;
+
         float v2 = (gravity * horizontalDistance * horizontalDistance) / denominator;
-        
-        return Mathf.Sqrt(Mathf.Max(v2, 25f)); // Mínimo v = 5 m/s
+        return Mathf.Sqrt(Mathf.Max(v2, 25f)); // clamp mínimo
     }
 
     private bool ShouldUsePhysicsShot()
     {
-        if (!usePhysicsWhenAreaEffectorsDetected || target == null)
-        {
-            return false;
-        }
+        if (!usePhysicsWhenAreaEffectorsDetected || target == null) return false;
 
-        Vector2 start = transform.position;
-        Vector2 end = target.position;
+        Vector2 start = muzzleTransform ? (Vector2)muzzleTransform.position : (Vector2)transform.position;
+        Vector2 end = (Vector2)target.position;
 
         float segmentDistance = Vector2.Distance(start, end);
-        if (segmentDistance <= 0.0001f)
-        {
-            return false;
-        }
+        if (segmentDistance <= 0.0001f) return false;
 
         Vector2 center = (start + end) * 0.5f;
         Vector2 size = new Vector2(segmentDistance, Mathf.Max(0.01f, effectorDetectionWidth));
         float angle = Mathf.Atan2(end.y - start.y, end.x - start.x) * Mathf.Rad2Deg;
 
         Collider2D[] hits = Physics2D.OverlapBoxAll(center, size, angle, effectorDetectionMask);
-        if (hits == null || hits.Length == 0)
-        {
-            return false;
-        }
+        if (hits == null || hits.Length == 0) return false;
 
         foreach (Collider2D hit in hits)
         {
-            if (hit == null)
-            {
-                continue;
-            }
-
-            if (hit.transform == transform || (target != null && hit.transform == target))
-            {
-                continue;
-            }
+            if (!hit) continue;
+            if (hit.transform == transform || (target != null && hit.transform == target)) continue;
 
             AreaEffector2D effector = hit.GetComponent<AreaEffector2D>();
-            if (effector == null)
-            {
-                effector = hit.GetComponentInParent<AreaEffector2D>();
-            }
-
-            if (effector != null)
-            {
-                return true;
-            }
+            if (!effector) effector = hit.GetComponentInParent<AreaEffector2D>();
+            if (effector) return true;
         }
 
         return false;
@@ -435,17 +447,11 @@ public class EnemyShooterAdvancedAI : MonoBehaviour
 
     public void SetTurnBasedControl(bool enabled)
     {
-        if (turnBasedControl == enabled)
-        {
-            return;
-        }
+        if (turnBasedControl == enabled) return;
 
         turnBasedControl = enabled;
-
         if (!turnBasedControl)
-        {
             shootTimer = GetNextShootDelay();
-        }
     }
 
     public bool CanExecuteTurnShot()
@@ -453,14 +459,15 @@ public class EnemyShooterAdvancedAI : MonoBehaviour
         return projectilePrefab != null && target != null;
     }
 
+    /// <summary>
+    /// Para modo por turno: inicia o ciclo de tiro (animação + evento disparam o projétil).
+    /// </summary>
     public void ExecuteTurnShot()
     {
         if (!CanExecuteTurnShot())
         {
             if (showDebugInfo)
-            {
-                Debug.LogWarning("Enemy Shooter turn shot skipped - missing projectile prefab or target.");
-            }
+                Debug.LogWarning("[EnemyShooterAdvancedAI] Turn shot skipped - missing prefab or target.");
             return;
         }
 
@@ -468,53 +475,38 @@ public class EnemyShooterAdvancedAI : MonoBehaviour
         shootTimer = GetNextShootDelay();
     }
 
-    // NOVOS MÉTODOS: Controle direto do modo de física
+    // --- Controle direto de física ---
     public void SetPhysicsMode(bool enabled)
     {
         usePhysicsMode = enabled;
         if (showDebugInfo)
-        {
-            Debug.Log($"[EnemyShooterAdvancedAI] Physics mode set to: {enabled}");
-        }
+            Debug.Log($"[EnemyShooterAdvancedAI] Physics mode set: {enabled}");
     }
 
-    public bool GetPhysicsMode()
-    {
-        return usePhysicsMode;
-    }
+    public bool GetPhysicsMode() => usePhysicsMode;
 
     public void SetPhysicsGravity(float gravity)
     {
         physicsGravityStrength = Mathf.Max(0f, gravity);
         if (showDebugInfo)
-        {
-            Debug.Log($"[EnemyShooterAdvancedAI] Physics gravity set to: {physicsGravityStrength}");
-        }
+            Debug.Log($"[EnemyShooterAdvancedAI] Physics gravity: {physicsGravityStrength}");
     }
 
-    public float GetPhysicsGravity()
-    {
-        return physicsGravityStrength;
-    }
+    public float GetPhysicsGravity() => physicsGravityStrength;
 
     private void OnDrawGizmos()
     {
-        if (target == null)
-        {
-            return;
-        }
+        if (target == null) return;
 
         Gizmos.color = Color.yellow;
-        Gizmos.DrawLine(transform.position, target.position);
-        Gizmos.DrawWireSphere(transform.position, 0.5f);
+        Vector3 from = muzzleTransform ? muzzleTransform.position : transform.position;
+        Gizmos.DrawLine(from, target.position);
+        Gizmos.DrawWireSphere(from, 0.4f);
     }
 
     private void OnDrawGizmosSelected()
     {
-        if (target == null || !showDebugInfo)
-        {
-            return;
-        }
+        if (target == null || !showDebugInfo) return;
 
         Gizmos.color = Color.green;
         Gizmos.DrawWireSphere(target.position, 0.5f);
@@ -532,20 +524,11 @@ public class EnemyShooterAdvancedAI : MonoBehaviour
         CacheSettingsFromFields();
     }
 
-    public float GetAimAccuracy()
-    {
-        return currentSettings.accuracy;
-    }
+    public float GetAimAccuracy() => currentSettings.accuracy;
 
-    public ShooterSettings GetCurrentSettings()
-    {
-        return currentSettings;
-    }
+    public ShooterSettings GetCurrentSettings() => currentSettings;
 
-    public Transform GetTarget()
-    {
-        return target;
-    }
+    public Transform GetTarget() => target;
 
     public void ApplySettings(ShooterSettings settings, bool resetShootTimer = true)
     {
@@ -574,9 +557,7 @@ public class EnemyShooterAdvancedAI : MonoBehaviour
         CacheSettingsFromFields();
 
         if (Application.isPlaying && resetShootTimer)
-        {
             shootTimer = GetNextShootDelay();
-        }
     }
 
     private void CacheSettingsFromFields()
