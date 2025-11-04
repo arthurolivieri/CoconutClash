@@ -32,13 +32,19 @@ public class EnemyShooterAdvancedAI : MonoBehaviour
     [Header("Debug")]
     [SerializeField] private bool showDebugInfo = false;
 
+    [Header("Physics Control")]
+    [SerializeField] private bool usePhysicsMode = false; // BOTÃO PRINCIPAL para ativar física
+    [SerializeField] private float physicsGravityStrength = 9.81f; // Força da gravidade
+    
     [Header("Area Effector Handling")]
     [SerializeField] private bool usePhysicsWhenAreaEffectorsDetected = true;
     [SerializeField] private float effectorDetectionWidth = 1.5f;
     [SerializeField] private LayerMask effectorDetectionMask = ~0;
     [SerializeField] private float physicsLaunchSpeed = 0f;
-    [SerializeField] private float physicsGravityStrength = 0f;
 
+    [Header("Physics Setup")]
+    [SerializeField] private int projectileLayer = 11; // EnemyProjectile layer (configure no Inspector)
+    
     [Header("Turn Control")]
     [SerializeField] private bool turnBasedControl = false;
 
@@ -124,34 +130,91 @@ public class EnemyShooterAdvancedAI : MonoBehaviour
     {
         Transform aimTarget = CalculateAimTarget(out bool willHit, out Vector3 aimPointPosition);
 
-        bool usePhysicsShot = ShouldUsePhysicsShot();
+        // MUDANÇA: Usar usePhysicsMode OU detecção automática de effectors
+        bool usePhysicsShot = usePhysicsMode || ShouldUsePhysicsShot();
 
         float heightNoise = GetPerlinNoise(100f);
         float heightVariation = 1f + ((heightNoise - 0.5f) * 2f * heightNoiseAmount);
         float projectileMaxHeight = Mathf.Max(0.05f, baseProjectileMaxHeight * heightVariation);
 
-        Projectile projectile = Instantiate(projectilePrefab, transform.position, Quaternion.identity)
-            .GetComponent<Projectile>();
+        GameObject projectileObj = Instantiate(projectilePrefab, transform.position, Quaternion.identity);
+        
+        // CONFIGURAR LAYER: Evitar colisão com o próprio atirador
+        if (projectileLayer > 0)
+        {
+            projectileObj.layer = projectileLayer;
+        }
+        
+        Projectile projectile = projectileObj.GetComponent<Projectile>();
 
         if (usePhysicsShot)
         {
-            Vector2 direction = (aimPointPosition - transform.position).normalized;
-            if (direction.sqrMagnitude < 0.0001f)
+            // SEMPRE MIRAR NO PLAYER: aimPointPosition já considera acerto/erro
+            Vector2 targetDirection = (aimPointPosition - transform.position);
+            float distance = targetDirection.magnitude;
+            
+            if (distance < 0.1f)
             {
-                direction = Vector2.right;
+                targetDirection = Vector2.right;
+                distance = 1f;
+            }
+            else
+            {
+                targetDirection = targetDirection.normalized;
             }
 
-            float launchSpeed = physicsLaunchSpeed > 0f ? physicsLaunchSpeed : baseProjectileMaxMoveSpeed;
-            Vector2 initialVelocity = direction * launchSpeed;
+            // VELOCIDADE CONTROLADA: Usar valores configuráveis diretamente
+            float baseSpeed = physicsLaunchSpeed > 0f ? physicsLaunchSpeed : baseProjectileMaxMoveSpeed;
+            
+            // ALEATORIEDADE SUAVE: Pequena variação para manter interessante
+            float speedVariation = Random.Range(0.9f, 1.1f); // ±10% de variação apenas
+            float launchSpeed = baseSpeed * speedVariation;
+            
+            // FORÇAR ARCO ALTO: Sempre usar ângulo alto para trajetória curva
+            float gravityToUse = physicsGravityStrength > 0f ? physicsGravityStrength : 9.81f;
+            float horizontalDistance = Mathf.Abs(aimPointPosition.x - transform.position.x);
+            float heightDifference = aimPointPosition.y - transform.position.y;
+            
+            // CÁLCULO DE ARCO ALTO: Sempre usar a solução de ângulo maior (trajetória alta)
+            float launchAngle = CalculateHighArcAngle(horizontalDistance, heightDifference, launchSpeed, gravityToUse);
+            
+            // GARANTIR ÂNGULO MÍNIMO: Nunca menor que 45°, ideal entre 45° e 75°
+            if (float.IsNaN(launchAngle) || launchAngle < 45f)
+            {
+                // Se não conseguir calcular ou ângulo muito baixo, forçar entre 45° e 60°
+                launchAngle = Random.Range(45f, 60f);
+                
+                // Ajustar velocidade para compensar ângulo fixo
+                launchSpeed = CalculateSpeedForAngle(horizontalDistance, heightDifference, launchAngle, gravityToUse);
+                
+                // Garantir velocidade dentro de limites razoáveis
+                launchSpeed = Mathf.Clamp(launchSpeed, baseSpeed * 0.5f, baseSpeed * 2f);
+            }
+            
+            // LIMITAR ÂNGULO: Entre 45° e 75° para garantir arco sempre alto
+            launchAngle = Mathf.Clamp(launchAngle, 45f, 75f);
+            
+            // Converter para radianos
+            float angleRad = launchAngle * Mathf.Deg2Rad;
+            
+            // Determinar direção horizontal (esquerda ou direita)
+            float horizontalSign = (aimPointPosition.x >= transform.position.x) ? 1f : -1f;
+            
+            // Velocidade inicial com direção correta
+            Vector2 initialVelocity = new Vector2(
+                Mathf.Cos(angleRad) * launchSpeed * horizontalSign,
+                Mathf.Sin(angleRad) * launchSpeed
+            );
 
             projectile.Initialize(
                 initialVelocity,
-                physicsGravityStrength,
+                gravityToUse,
                 baseProjectileRotationSpeed
             );
         }
         else
         {
+            // Modo curve original (sem física)
             projectile.InitializeProjectile(
                 aimTarget,
                 baseProjectileMaxMoveSpeed,
@@ -179,8 +242,9 @@ public class EnemyShooterAdvancedAI : MonoBehaviour
             float loggedSpeed = usePhysicsShot
                 ? (physicsLaunchSpeed > 0f ? physicsLaunchSpeed : baseProjectileMaxMoveSpeed)
                 : baseProjectileMaxMoveSpeed;
-            float loggedHeight = usePhysicsShot ? 0f : projectileMaxHeight;
-            Debug.Log($"Enemy AI shot {result} ({mode}) - Speed: {loggedSpeed:F2}, Height: {loggedHeight:F2}, Aim Offset: {aimOffset:F2}");
+            float loggedHeight = usePhysicsShot ? projectileMaxHeight : projectileMaxHeight;
+            float loggedGravity = usePhysicsShot ? (physicsGravityStrength > 0f ? physicsGravityStrength : 9.81f) : 0f;
+            Debug.Log($"Enemy AI shot {result} ({mode}) - Speed: {loggedSpeed:F2}, Height: {loggedHeight:F2}, Gravity: {loggedGravity:F2}, Aim Offset: {aimOffset:F2}");
         }
     }
 
@@ -238,6 +302,82 @@ public class EnemyShooterAdvancedAI : MonoBehaviour
             noiseOffset
         );
         return noiseValue;
+    }
+
+    // NOVO MÉTODO: Calcular ângulo de lançamento balístico real
+    private float CalculateLaunchAngle(float horizontalDistance, float heightDifference, float launchSpeed, float gravity)
+    {
+        // Equação balística: tan(θ) = (v²±√(v⁴-g(gx²+2yv²))) / (gx)
+        // Usando a solução de menor ângulo (trajetória mais baixa)
+        
+        float v2 = launchSpeed * launchSpeed;
+        float v4 = v2 * v2;
+        float gx = gravity * horizontalDistance;
+        float gx2 = gx * horizontalDistance;
+        float discriminant = v4 - gravity * (gx2 + 2 * heightDifference * v2);
+        
+        if (discriminant < 0)
+        {
+            // Sem solução real, target muito longe/alto para a velocidade
+            return float.NaN;
+        }
+        
+        float sqrtDiscriminant = Mathf.Sqrt(discriminant);
+        
+        // Usar solução de menor ângulo (sinal negativo)
+        float tanAngle = (v2 - sqrtDiscriminant) / gx;
+        
+        return Mathf.Atan(tanAngle) * Mathf.Rad2Deg;
+    }
+
+    // NOVO MÉTODO: Calcular ângulo ALTO para trajetória curva
+    private float CalculateHighArcAngle(float horizontalDistance, float heightDifference, float launchSpeed, float gravity)
+    {
+        // Equação balística: tan(θ) = (v²±√(v⁴-g(gx²+2yv²))) / (gx)
+        // Usando a solução de MAIOR ângulo (trajetória ALTA)
+        
+        if (horizontalDistance < 0.1f) return 45f; // Evitar divisão por zero
+        
+        float v2 = launchSpeed * launchSpeed;
+        float v4 = v2 * v2;
+        float gx = gravity * horizontalDistance;
+        float gx2 = gx * horizontalDistance;
+        float discriminant = v4 - gravity * (gx2 + 2 * heightDifference * v2);
+        
+        if (discriminant < 0)
+        {
+            // Sem solução real, retornar ângulo alto padrão
+            return 50f;
+        }
+        
+        float sqrtDiscriminant = Mathf.Sqrt(discriminant);
+        
+        // Usar solução de MAIOR ângulo (sinal POSITIVO) para arco alto
+        float tanAngle = (v2 + sqrtDiscriminant) / gx;
+        
+        float angle = Mathf.Atan(tanAngle) * Mathf.Rad2Deg;
+        
+        // Garantir que o ângulo seja alto (mínimo 45°)
+        return Mathf.Max(angle, 45f);
+    }
+
+    // NOVO MÉTODO: Calcular velocidade necessária para um ângulo específico
+    private float CalculateSpeedForAngle(float horizontalDistance, float heightDifference, float angle, float gravity)
+    {
+        if (horizontalDistance < 0.1f) return 10f; // Evitar divisão por zero
+        
+        float angleRad = angle * Mathf.Deg2Rad;
+        float tanAngle = Mathf.Tan(angleRad);
+        float cosAngle = Mathf.Cos(angleRad);
+        
+        // Fórmula: v = √(gx² / (2cos²θ(x*tanθ - y)))
+        float denominator = 2f * cosAngle * cosAngle * (horizontalDistance * tanAngle - heightDifference);
+        
+        if (denominator <= 0f) return 15f; // Fallback
+        
+        float v2 = (gravity * horizontalDistance * horizontalDistance) / denominator;
+        
+        return Mathf.Sqrt(Mathf.Max(v2, 25f)); // Mínimo v = 5 m/s
     }
 
     private bool ShouldUsePhysicsShot()
@@ -326,6 +466,35 @@ public class EnemyShooterAdvancedAI : MonoBehaviour
 
         ShootProjectile();
         shootTimer = GetNextShootDelay();
+    }
+
+    // NOVOS MÉTODOS: Controle direto do modo de física
+    public void SetPhysicsMode(bool enabled)
+    {
+        usePhysicsMode = enabled;
+        if (showDebugInfo)
+        {
+            Debug.Log($"[EnemyShooterAdvancedAI] Physics mode set to: {enabled}");
+        }
+    }
+
+    public bool GetPhysicsMode()
+    {
+        return usePhysicsMode;
+    }
+
+    public void SetPhysicsGravity(float gravity)
+    {
+        physicsGravityStrength = Mathf.Max(0f, gravity);
+        if (showDebugInfo)
+        {
+            Debug.Log($"[EnemyShooterAdvancedAI] Physics gravity set to: {physicsGravityStrength}");
+        }
+    }
+
+    public float GetPhysicsGravity()
+    {
+        return physicsGravityStrength;
     }
 
     private void OnDrawGizmos()

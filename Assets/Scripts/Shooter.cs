@@ -27,6 +27,9 @@ public class Shooter : MonoBehaviour
     [SerializeField] private AnimationCurve axisCorrectionAnimationCurve;
     [SerializeField] private AnimationCurve projectileSpeedAnimationCurve;
 
+    [Header("Physics Setup")]
+    [SerializeField] private int projectileLayer = 10; // PlayerProjectile layer (configure no Inspector)
+    
     [Header("Turn Control")]
     [SerializeField] private bool restrictManualShootingToTurn = false;
 
@@ -72,6 +75,13 @@ public class Shooter : MonoBehaviour
         Vector2 initialVelocity = dir * speed;
 
         GameObject go = Instantiate(projectilePrefab, startPos, Quaternion.identity);
+        
+        // CONFIGURAR LAYER: Evitar colisão com o próprio atirador (player)
+        if (projectileLayer > 0)
+        {
+            go.layer = projectileLayer;
+        }
+        
         var proj = go.GetComponent<Projectile>();
         if (proj == null) proj = go.AddComponent<Projectile>();
 
@@ -93,6 +103,13 @@ public class Shooter : MonoBehaviour
         shootTimer = 0f;
 
         GameObject go = Instantiate(projectilePrefab, transform.position, Quaternion.identity);
+        
+        // CONFIGURAR LAYER: Evitar colisão com o próprio atirador (player)
+        if (projectileLayer > 0)
+        {
+            go.layer = projectileLayer;
+        }
+        
         var proj = go.GetComponent<Projectile>();
         if (proj == null) proj = go.AddComponent<Projectile>();
 
