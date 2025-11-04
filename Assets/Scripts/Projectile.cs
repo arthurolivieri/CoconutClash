@@ -2,13 +2,17 @@ using UnityEngine;
 
 public class Projectile : MonoBehaviour
 {
-    private Transform target;
-    private float moveSpeed;
-    private float maxMoveSpeed;
-    private float trajectoryMaxRelativeHeight;
-    private float projectileRotationSpeed;
+    // ===== MANUAL / PHYSICS MODE =====
+    private bool manualPhysics = false;    // if true, use rb physics only
+    private float spinSpeed = 0f;          // cosmetic spin (deg/s)
 
-    private float distanceToTargetToDestroyProjectile = 1f;
+    // ===== AI / CURVE MODE =====
+    private bool aiMode = false;
+    private Transform target;
+    private float maxMoveSpeed = 6f;
+    private float moveSpeed = 0f;
+    private float trajectoryMaxRelativeHeight = 1f;
+    private float projectileRotationSpeed = 180f;
 
     private AnimationCurve trajectoryAnimationCurve;
     private AnimationCurve axisCorrectionAnimationCurve;
@@ -16,70 +20,191 @@ public class Projectile : MonoBehaviour
 
     private Vector3 trajectoryStartPoint;
 
-    private void Start() {
-        trajectoryStartPoint = transform.position;
-    }
+    // ===== Lifetime / cleanup =====
+    [Header("General")]
+    [SerializeField] private float distanceToTargetToDestroyProjectile = 0.2f; // AI only
+    [SerializeField] private float lifetimeSeconds = 10f;
+    private float lifeTimer = 0f;
 
-    private void Update() {
+    // ===== Cached components =====
+    private Rigidbody2D rb;
+    private Collider2D col;
+    private SpriteRenderer sr;
 
-        UpdateProjectilePosition();
-        UpdateProjectileRotation();
+    private bool guardLogged;
 
-        if (Vector3.Distance(transform.position, target.position) < distanceToTargetToDestroyProjectile) {
-            Destroy(gameObject);
+    private void Awake()
+    {
+        rb  = GetComponent<Rigidbody2D>();
+        col = GetComponent<Collider2D>();
+        sr  = GetComponent<SpriteRenderer>();
+
+        // Make sure we have the pieces needed for physics collisions
+        if (rb == null) rb = gameObject.AddComponent<Rigidbody2D>();
+        rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+        rb.sleepMode = RigidbodySleepMode2D.NeverSleep;
+        rb.interpolation = RigidbodyInterpolation2D.Interpolate;
+
+        if (col == null)
+        {
+            var cc = gameObject.AddComponent<CircleCollider2D>();
+            cc.radius = 0.15f;
+            cc.isTrigger = false;
+            col = cc;
         }
-    }
-
-    private void UpdateProjectilePosition() {
-        Vector3 trajectoryRange = target.position - trajectoryStartPoint;
-
-        if (trajectoryRange.x < 0) {
-            // Shooter is located behind the target
-            moveSpeed = -moveSpeed;
+        else
+        {
+            col.isTrigger = false; // we want solid collisions with walls
         }
 
-        float nextPositionX = transform.position.x + moveSpeed * Time.deltaTime;
-        float nextPositionXNormalized = (nextPositionX - trajectoryStartPoint.x) / trajectoryRange.x;
-
-        float nextPositionYNormalized = trajectoryAnimationCurve.Evaluate(nextPositionXNormalized);
-        float nextPositionYCorrectionNormalized = axisCorrectionAnimationCurve.Evaluate(nextPositionXNormalized);
-        float nextPositionYCorrectionAbsolute = nextPositionYCorrectionNormalized * trajectoryRange.y;
-
-        float nextPositionY = trajectoryStartPoint.y + nextPositionYNormalized * trajectoryMaxRelativeHeight + nextPositionYCorrectionAbsolute;
-    
-        Vector3 newPosition = new Vector3(nextPositionX, nextPositionY, 0);
-
-        CalculateNextProjectileSpeed(nextPositionXNormalized);
-
-        transform.position = newPosition;
+        // Do not tick Update until initialized
+        enabled = false;
     }
 
-    private void UpdateProjectileRotation() {
-        transform.Rotate(Vector3.forward, projectileRotationSpeed * Time.deltaTime);
+    // =========================
+    //    PUBLIC: MANUAL MODE
+    // =========================
+    /// <summary>
+    /// Physics projectile: uses Rigidbody2D so it collides with walls (no curves/target).
+    /// </summary>
+    public void Initialize(Vector2 initialVelocity, float gravityStrength, float rotationSpeed)
+    {
+        manualPhysics = true;
+        aiMode = false;
+
+        spinSpeed = rotationSpeed;
+
+        rb.bodyType = RigidbodyType2D.Dynamic;
+        rb.gravityScale = gravityStrength / 9.81f;  // convert to Unity gravity units
+        rb.linearVelocity = initialVelocity;
+
+        enabled = true;  // we use Update only for cosmetic spin + lifetime
     }
 
-    private void CalculateNextProjectileSpeed(float nextPositionXNormalized) {
-        float nextMoveSpeedNormalized = projectileSpeedAnimationCurve.Evaluate(nextPositionXNormalized);
-        moveSpeed = nextMoveSpeedNormalized * maxMoveSpeed;
-    }
-
+    // =========================
+    //       PUBLIC: AI MODE
+    // =========================
     public void InitializeProjectile(Transform target,
                                      float maxMoveSpeed,
                                      float trajectoryMaxHeight,
-                                     float projectileRotationSpeed) {
+                                     float projectileRotationSpeed)
+    {
+        if (target == null)
+        {
+            Debug.LogError("[Projectile] InitializeProjectile: target is NULL!");
+            return;
+        }
+
+        manualPhysics = false;
+        aiMode = true;
+
         this.target = target;
         this.maxMoveSpeed = maxMoveSpeed;
-        float xDistanceToTarget = target.position.x - transform.position.x;
-        this.trajectoryMaxRelativeHeight = Mathf.Abs(xDistanceToTarget) * trajectoryMaxHeight;
         this.projectileRotationSpeed = projectileRotationSpeed;
+
+        float xDist = target.position.x - transform.position.x;
+        trajectoryMaxRelativeHeight = Mathf.Abs(xDist) * Mathf.Max(0.0f, trajectoryMaxHeight);
+
+        trajectoryStartPoint = transform.position;
+
+        // In AI mode, we kinematically place the projectile along the curve
+        rb.bodyType = RigidbodyType2D.Kinematic;
+        rb.gravityScale = 0f;
+
+        // Do not enable yet — we enable when curves are set (or defaults applied)
     }
 
-    public void InitializeAnimationCurves(AnimationCurve trajectoryAnimationCurve,
-                                          AnimationCurve axisCorrectionAnimationCurve,
-                                          AnimationCurve projectileSpeedAnimationCurve) {
-        this.trajectoryAnimationCurve = trajectoryAnimationCurve;
-        this.axisCorrectionAnimationCurve = axisCorrectionAnimationCurve;
-        this.projectileSpeedAnimationCurve = projectileSpeedAnimationCurve;
+    public void InitializeAnimationCurves(AnimationCurve traj,
+                                          AnimationCurve axis,
+                                          AnimationCurve speed)
+    {
+        // Safe defaults so you don't need to touch the inspector
+        trajectoryAnimationCurve      = traj  ?? AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
+        axisCorrectionAnimationCurve  = axis  ?? new AnimationCurve(new Keyframe(0f, 0f), new Keyframe(1f, 0f));
+        projectileSpeedAnimationCurve = speed ?? new AnimationCurve(new Keyframe(0f, 1f), new Keyframe(1f, 1f));
+
+        // Now we can run AI update
+        enabled = true;
     }
-    
+
+    // =========================
+    //          UPDATE
+    // =========================
+    private void Update()
+    {
+        // Lifetime
+        lifeTimer += Time.deltaTime;
+        if (lifetimeSeconds > 0f && lifeTimer >= lifetimeSeconds)
+        {
+            Destroy(gameObject);
+            return;
+        }
+
+        if (manualPhysics)
+        {
+            // cosmetic spin only — movement is handled by Rigidbody2D
+            if (spinSpeed != 0f)
+                transform.Rotate(Vector3.forward, spinSpeed * Time.deltaTime);
+            return;
+        }
+
+        if (aiMode)
+        {
+            if (target == null || trajectoryAnimationCurve == null ||
+                axisCorrectionAnimationCurve == null || projectileSpeedAnimationCurve == null)
+            {
+                if (!guardLogged)
+                {
+                    Debug.LogWarning("[Projectile] AI Update skipped — missing target or curves.");
+                    guardLogged = true;
+                }
+                return;
+            }
+
+            Vector3 toTarget = target.position - trajectoryStartPoint;
+            float dx = toTarget.x;
+            if (Mathf.Abs(dx) < 1e-4f) dx = Mathf.Sign(dx) * 1e-4f;
+
+            // progress along X (0..1)
+            float tNow = Mathf.InverseLerp(trajectoryStartPoint.x, target.position.x, transform.position.x);
+            float speed01 = Mathf.Clamp01(projectileSpeedAnimationCurve.Evaluate(tNow));
+            moveSpeed = Mathf.Sign(dx) * Mathf.Max(0.001f, speed01) * maxMoveSpeed;
+
+            // next X
+            float nextX = transform.position.x + moveSpeed * Time.deltaTime;
+            float tX = Mathf.InverseLerp(trajectoryStartPoint.x, target.position.x, nextX);
+            tX = Mathf.Clamp01(tX);
+
+            // Y from curves
+            float baseYNorm = Mathf.Clamp01(trajectoryAnimationCurve.Evaluate(tX));
+            float y = trajectoryStartPoint.y + baseYNorm * trajectoryMaxRelativeHeight;
+
+            float axisCorrNorm = axisCorrectionAnimationCurve.Evaluate(tX);
+            y += axisCorrNorm * trajectoryMaxRelativeHeight;
+
+            Vector3 nextPos = new Vector3(nextX, y, 0f);
+
+            // Move kinematically
+            if (rb.bodyType == RigidbodyType2D.Kinematic) rb.MovePosition(nextPos);
+            else transform.position = nextPos;
+
+            // Rotate toward movement
+            Vector2 dir = (Vector2)(nextPos - transform.position);
+            if (dir.sqrMagnitude > 0.0001f)
+            {
+                float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
+                transform.rotation = Quaternion.RotateTowards(
+                    transform.rotation,
+                    Quaternion.AngleAxis(angle, Vector3.forward),
+                    projectileRotationSpeed * Time.deltaTime
+                );
+            }
+
+            // Destroy near target (AI only)
+            if (Vector3.Distance(transform.position, target.position) < distanceToTargetToDestroyProjectile)
+            {
+                Destroy(gameObject);
+            }
+        }
+    }
 }

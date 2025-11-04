@@ -360,7 +360,7 @@ MonoBehaviour:
   projectilePrefab: {fileID: 1547535765}
   target: {fileID: 1994384046}
   shootRate: 1
-  projectileMaxMoveSpeed: 0
+  projectileMaxMoveSpeed: 7
   projectileMaxHeight: 0
   projectileRotationSpeed: 0
   trajectoryAnimationCurve:
@@ -522,6 +522,10 @@ PrefabInstance:
     - target: {fileID: 7057132163050103756, guid: 1ca53cc9f42d44031b96983a70357562, type: 3}
       propertyPath: m_Name
       value: Projectile
+      objectReference: {fileID: 0}
+    - target: {fileID: 7057132163050103756, guid: 1ca53cc9f42d44031b96983a70357562, type: 3}
+      propertyPath: m_IsActive
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 7551995882513135882, guid: 1ca53cc9f42d44031b96983a70357562, type: 3}
       propertyPath: m_LocalPosition.x
