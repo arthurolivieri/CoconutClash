@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 public class Shooter : MonoBehaviour
@@ -26,8 +27,14 @@ public class Shooter : MonoBehaviour
     [SerializeField] private AnimationCurve axisCorrectionAnimationCurve;
     [SerializeField] private AnimationCurve projectileSpeedAnimationCurve;
 
+    [Header("Turn Control")]
+    [SerializeField] private bool restrictManualShootingToTurn = false;
+
     private float shootTimer;
     private Camera mainCam;
+    private bool manualTurnEnabled = true;
+
+    public event Action ManualShotFired;
 
     private void Awake()
     {
@@ -46,6 +53,7 @@ public class Shooter : MonoBehaviour
     private void HandleManual()
     {
         if (projectilePrefab == null) return;
+        if (restrictManualShootingToTurn && !manualTurnEnabled) return;
         if (!Input.GetMouseButtonDown(0)) return;
 
         if (mainCam == null)
@@ -69,6 +77,7 @@ public class Shooter : MonoBehaviour
 
         // Manual physics init → uses Rigidbody2D (collides with walls)
         proj.Initialize(initialVelocity, gravityStrength, projectileRotationSpeed);
+        ManualShotFired?.Invoke();
         // Debug.Log("[Shooter] Manual projectile fired.");
     }
 
@@ -92,5 +101,15 @@ public class Shooter : MonoBehaviour
         proj.InitializeAnimationCurves(trajectoryAnimationCurve, axisCorrectionAnimationCurve, projectileSpeedAnimationCurve);
 
         // Debug.Log("[Shooter] AI projectile fired.");
+    }
+
+    public void SetRestrictManualShootingToTurn(bool restrict)
+    {
+        restrictManualShootingToTurn = restrict;
+    }
+
+    public void SetManualTurnEnabled(bool enabled)
+    {
+        manualTurnEnabled = enabled;
     }
 }

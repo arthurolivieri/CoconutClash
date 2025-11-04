@@ -931,6 +931,7 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+  restrictManualShootingToTurn: 0
 --- !u!50 &1182712020
 Rigidbody2D:
   serializedVersion: 5
@@ -963,6 +964,56 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 3875975810400074916, guid: 5c4d80730d28a44bea48eaf96aa57f69, type: 3}
   m_PrefabInstance: {fileID: 8391242532841779658}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &1430190873
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1430190875}
+  - component: {fileID: 1430190874}
+  m_Layer: 0
+  m_Name: GameController
+  m_TagString: GameController
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1430190874
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1430190873}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dd8d56684845d4e2485dd910c55638a4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  playerShooter: {fileID: 1182712016}
+  enemyShooter: {fileID: 1994384052}
+  startWithPlayer: 1
+  playerTurnEndDelay: 1.5
+  enemyPreparationDelay: 1
+  enemyTurnEndDelay: 1.5
+--- !u!4 &1430190875
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1430190873}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -1.7486824, y: 1.9683428, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1547535765 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 7057132163050103756, guid: 1ca53cc9f42d44031b96983a70357562, type: 3}
@@ -1310,23 +1361,94 @@ MonoBehaviour:
   heightNoiseAmount: 0.3
   trajectoryAnimationCurve:
     serializedVersion: 2
-    m_Curve: []
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 2
+      outSlope: 2
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.5
+      value: 0.5
+      inSlope: 0.0025806278
+      outSlope: 0.0025806278
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.66637444
+    - serializedVersion: 3
+      time: 0.9946764
+      value: -0.0037748178
+      inSlope: -2.1924644
+      outSlope: -2.1924644
+      tangentMode: 0
+      weightedMode: 1
+      inWeight: 0.25856853
+      outWeight: 0.33333334
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
   axisCorrectionAnimationCurve:
     serializedVersion: 2
-    m_Curve: []
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 1
+      outSlope: 1
+      tangentMode: 34
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 1
+      outSlope: 1
+      tangentMode: 34
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
   projectileSpeedAnimationCurve:
     serializedVersion: 2
-    m_Curve: []
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: -1.1719326
+      outSlope: -1.1719326
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0.06775068
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 2
+      outSlope: 2
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
   showDebugInfo: 0
+  usePhysicsWhenAreaEffectorsDetected: 1
+  effectorDetectionWidth: 1.5
+  effectorDetectionMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  physicsLaunchSpeed: 0
+  physicsGravityStrength: 0
+  turnBasedControl: 0
 --- !u!114 &1994384053
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1639,3 +1761,4 @@ SceneRoots:
   - {fileID: 1968862656}
   - {fileID: 1167305324}
   - {fileID: 326962911}
+  - {fileID: 1430190875}

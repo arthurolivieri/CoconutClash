@@ -32,6 +32,16 @@ public class EnemyShooterAdvancedAI : MonoBehaviour
     [Header("Debug")]
     [SerializeField] private bool showDebugInfo = false;
 
+    [Header("Area Effector Handling")]
+    [SerializeField] private bool usePhysicsWhenAreaEffectorsDetected = true;
+    [SerializeField] private float effectorDetectionWidth = 1.5f;
+    [SerializeField] private LayerMask effectorDetectionMask = ~0;
+    [SerializeField] private float physicsLaunchSpeed = 0f;
+    [SerializeField] private float physicsGravityStrength = 0f;
+
+    [Header("Turn Control")]
+    [SerializeField] private bool turnBasedControl = false;
+
     [System.Serializable]
     public struct ShooterSettings
     {
@@ -87,6 +97,11 @@ public class EnemyShooterAdvancedAI : MonoBehaviour
             return;
         }
 
+        if (turnBasedControl)
+        {
+            return;
+        }
+
         shootTimer -= Time.deltaTime;
 
         if (shootTimer <= 0f)
@@ -109,6 +124,8 @@ public class EnemyShooterAdvancedAI : MonoBehaviour
     {
         Transform aimTarget = CalculateAimTarget(out bool willHit, out Vector3 aimPointPosition);
 
+        bool usePhysicsShot = ShouldUsePhysicsShot();
+
         float heightNoise = GetPerlinNoise(100f);
         float heightVariation = 1f + ((heightNoise - 0.5f) * 2f * heightNoiseAmount);
         float projectileMaxHeight = Mathf.Max(0.05f, baseProjectileMaxHeight * heightVariation);
@@ -116,18 +133,38 @@ public class EnemyShooterAdvancedAI : MonoBehaviour
         Projectile projectile = Instantiate(projectilePrefab, transform.position, Quaternion.identity)
             .GetComponent<Projectile>();
 
-        projectile.InitializeProjectile(
-            aimTarget,
-            baseProjectileMaxMoveSpeed,
-            projectileMaxHeight,
-            baseProjectileRotationSpeed
-        );
+        if (usePhysicsShot)
+        {
+            Vector2 direction = (aimPointPosition - transform.position).normalized;
+            if (direction.sqrMagnitude < 0.0001f)
+            {
+                direction = Vector2.right;
+            }
 
-        projectile.InitializeAnimationCurves(
-            trajectoryAnimationCurve,
-            axisCorrectionAnimationCurve,
-            projectileSpeedAnimationCurve
-        );
+            float launchSpeed = physicsLaunchSpeed > 0f ? physicsLaunchSpeed : baseProjectileMaxMoveSpeed;
+            Vector2 initialVelocity = direction * launchSpeed;
+
+            projectile.Initialize(
+                initialVelocity,
+                physicsGravityStrength,
+                baseProjectileRotationSpeed
+            );
+        }
+        else
+        {
+            projectile.InitializeProjectile(
+                aimTarget,
+                baseProjectileMaxMoveSpeed,
+                projectileMaxHeight,
+                baseProjectileRotationSpeed
+            );
+
+            projectile.InitializeAnimationCurves(
+                trajectoryAnimationCurve,
+                axisCorrectionAnimationCurve,
+                projectileSpeedAnimationCurve
+            );
+        }
 
         if (aimVisualizer != null)
         {
@@ -136,9 +173,14 @@ public class EnemyShooterAdvancedAI : MonoBehaviour
 
         if (showDebugInfo)
         {
+            string mode = usePhysicsShot ? "Physics" : "Curve";
             string result = willHit ? "✓ HIT" : "✗ MISS";
             float aimOffset = Vector3.Distance(target.position, aimPointPosition);
-            Debug.Log($"Enemy AI shot {result} - Speed: {baseProjectileMaxMoveSpeed:F2}, Height: {projectileMaxHeight:F2}, Aim Offset: {aimOffset:F2}");
+            float loggedSpeed = usePhysicsShot
+                ? (physicsLaunchSpeed > 0f ? physicsLaunchSpeed : baseProjectileMaxMoveSpeed)
+                : baseProjectileMaxMoveSpeed;
+            float loggedHeight = usePhysicsShot ? 0f : projectileMaxHeight;
+            Debug.Log($"Enemy AI shot {result} ({mode}) - Speed: {loggedSpeed:F2}, Height: {loggedHeight:F2}, Aim Offset: {aimOffset:F2}");
         }
     }
 
@@ -196,6 +238,94 @@ public class EnemyShooterAdvancedAI : MonoBehaviour
             noiseOffset
         );
         return noiseValue;
+    }
+
+    private bool ShouldUsePhysicsShot()
+    {
+        if (!usePhysicsWhenAreaEffectorsDetected || target == null)
+        {
+            return false;
+        }
+
+        Vector2 start = transform.position;
+        Vector2 end = target.position;
+
+        float segmentDistance = Vector2.Distance(start, end);
+        if (segmentDistance <= 0.0001f)
+        {
+            return false;
+        }
+
+        Vector2 center = (start + end) * 0.5f;
+        Vector2 size = new Vector2(segmentDistance, Mathf.Max(0.01f, effectorDetectionWidth));
+        float angle = Mathf.Atan2(end.y - start.y, end.x - start.x) * Mathf.Rad2Deg;
+
+        Collider2D[] hits = Physics2D.OverlapBoxAll(center, size, angle, effectorDetectionMask);
+        if (hits == null || hits.Length == 0)
+        {
+            return false;
+        }
+
+        foreach (Collider2D hit in hits)
+        {
+            if (hit == null)
+            {
+                continue;
+            }
+
+            if (hit.transform == transform || (target != null && hit.transform == target))
+            {
+                continue;
+            }
+
+            AreaEffector2D effector = hit.GetComponent<AreaEffector2D>();
+            if (effector == null)
+            {
+                effector = hit.GetComponentInParent<AreaEffector2D>();
+            }
+
+            if (effector != null)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public void SetTurnBasedControl(bool enabled)
+    {
+        if (turnBasedControl == enabled)
+        {
+            return;
+        }
+
+        turnBasedControl = enabled;
+
+        if (!turnBasedControl)
+        {
+            shootTimer = GetNextShootDelay();
+        }
+    }
+
+    public bool CanExecuteTurnShot()
+    {
+        return projectilePrefab != null && target != null;
+    }
+
+    public void ExecuteTurnShot()
+    {
+        if (!CanExecuteTurnShot())
+        {
+            if (showDebugInfo)
+            {
+                Debug.LogWarning("Enemy Shooter turn shot skipped - missing projectile prefab or target.");
+            }
+            return;
+        }
+
+        ShootProjectile();
+        shootTimer = GetNextShootDelay();
     }
 
     private void OnDrawGizmos()
