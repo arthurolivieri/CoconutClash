@@ -5,6 +5,9 @@ public class Shooter : MonoBehaviour
     [Header("Prefab do projétil")]
     [SerializeField] private GameObject projectilePrefab;
 
+    [Header("Boca do tiro (opcional)")]
+    [SerializeField] private Transform muzzleTransform;
+
     [Header("Força do disparo (controlada pela distância do mouse)")]
     [SerializeField] private float minLaunchSpeed = 5f;     // tiro fraquinho
     [SerializeField] private float maxLaunchSpeed = 20f;    // tiro forte
@@ -16,50 +19,134 @@ public class Shooter : MonoBehaviour
     [Header("Rotação visual do projétil")]
     [SerializeField] private float projectileRotationSpeed = 180f;
 
+    // ===== Integração com Animator =====
+    [Header("Animation")]
+    [SerializeField] private Animator animator;                    // arraste o Animator do Player
+    [SerializeField] private string shootBoolName = "is_shooting"; // mesmo parâmetro do controller
+    [SerializeField] private string shootStateName = "Shoot";      // nome do state de disparo
+    [Tooltip("Failsafe: se o evento final não disparar, desliga o bool após este tempo (s).")]
+    [SerializeField] private float shootClipMaxLength = 0.6f;
+
+    [Tooltip("Se o Animation Event de disparo não vier, dispara automaticamente após este atraso (s).")]
+    [SerializeField] private bool fireFailsafeIfNoEvent = true;
+    [SerializeField] private float fireFailsafeDelay = 0.15f;
+
+    // ===== Controle interno =====
+    private bool firedThisCycle = false;           // garante 1 projétil por animação
+    private Coroutine shootFailsafeCoro;
+    private Coroutine fireFailsafeCoro;
+
+    // Guardamos a mira no momento do clique para usar no frame do evento
+    private Vector3 cachedStartPos;
+    private Vector3 cachedMouseWorldPos;
+
+    private void Awake()
+    {
+        if (!animator) animator = GetComponent<Animator>();
+    }
+
     private void Update()
     {
-        // toda vez que você CLICA botão esquerdo (down) gera UMA bala
+        // Clique para iniciar o disparo (liga a animação; NÃO instancia ainda)
         if (Input.GetMouseButtonDown(0))
         {
-            // posição da boca do tiro (normalmente seu player)
-            Vector3 startPos = transform.position;
-            startPos.z = 0f;
+            // Cache da posição de saída e da mira
+            cachedStartPos = muzzleTransform ? muzzleTransform.position : transform.position;
+            cachedStartPos.z = 0f;
 
-            // pega posição do mouse no mundo
             Vector3 mouseScreenPos = Input.mousePosition;
-            Vector3 mouseWorldPos = Camera.main.ScreenToWorldPoint(mouseScreenPos);
-            mouseWorldPos.z = 0f;
+            cachedMouseWorldPos = Camera.main.ScreenToWorldPoint(mouseScreenPos);
+            cachedMouseWorldPos.z = 0f;
 
-            // direção normalizada da mira
-            Vector2 dir = (mouseWorldPos - startPos).normalized;
-
-            // distância até o mouse → controla quão forte é o tiro
-            float distToMouse = Vector2.Distance(startPos, mouseWorldPos);
-
-            // converte distância em velocidade inicial entre min e max
-            float t = Mathf.Clamp01(distToMouse / maxChargeDistance);
-            float launchSpeed = Mathf.Lerp(minLaunchSpeed, maxLaunchSpeed, t);
-
-            // velocidade inicial
-            Vector2 initialVelocity = dir * launchSpeed;
-
-            // instancia projétil
-            GameObject projGO = Instantiate(
-                projectilePrefab,
-                startPos,
-                Quaternion.identity
-            );
-
-            Projectile proj = projGO.GetComponent<Projectile>();
-
-            // se isso aqui for null, quer dizer que SEU PREFAB não tem o script Projectile na raiz
-            // isso daria NullReference na hora e o jogo travaria depois de alguns tiros.
-            // então é muito importante que o script Projectile esteja no GameObject raiz do prefab.
-            proj.Initialize(
-                initialVelocity,
-                gravityStrength,
-                projectileRotationSpeed
-            );
+            StartShootCycle();
         }
+    }
+
+    private void StartShootCycle()
+    {
+        // Se não tem animator, dispare direto (fallback)
+        if (!animator)
+        {
+            Fire();
+            return;
+        }
+
+        // Evita reentrar no meio do Shoot
+        var st = animator.GetCurrentAnimatorStateInfo(0);
+        if (st.IsName(shootStateName)) return;
+
+        firedThisCycle = false;
+
+        animator.SetBool(shootBoolName, true);
+
+        // Failsafe: se o fim da animação não resetar o bool
+        if (shootFailsafeCoro != null) StopCoroutine(shootFailsafeCoro);
+        shootFailsafeCoro = StartCoroutine(ResetShootBoolFailsafe(shootClipMaxLength));
+
+        // Failsafe: se o Animation Event de tiro não vier, dispara sozinho
+        if (fireFailsafeIfNoEvent)
+        {
+            if (fireFailsafeCoro != null) StopCoroutine(fireFailsafeCoro);
+            fireFailsafeCoro = StartCoroutine(FireFailsafeAfter(fireFailsafeDelay));
+        }
+    }
+
+    private System.Collections.IEnumerator ResetShootBoolFailsafe(float t)
+    {
+        yield return new WaitForSeconds(t);
+        if (animator) animator.SetBool(shootBoolName, false);
+        shootFailsafeCoro = null;
+    }
+
+    private System.Collections.IEnumerator FireFailsafeAfter(float t)
+    {
+        yield return new WaitForSeconds(t);
+        if (!firedThisCycle) Fire();
+        fireFailsafeCoro = null;
+    }
+
+    // ===== Animation Events (adicione no clip do Player) =====
+    // Coloque este evento no frame do disparo
+    public void OnShootFire()
+    {
+        if (firedThisCycle) return;
+        Fire();
+    }
+
+    // Coloque este evento no final da animação
+    public void OnShootAnimEnd()
+    {
+        if (animator) animator.SetBool(shootBoolName, false);
+        if (shootFailsafeCoro != null) { StopCoroutine(shootFailsafeCoro); shootFailsafeCoro = null; }
+    }
+
+    // ===== Disparo real do projétil =====
+    private void Fire()
+    {
+        firedThisCycle = true;
+
+        // Direção da mira a partir do cache do clique
+        Vector2 dir = (cachedMouseWorldPos - cachedStartPos).normalized;
+
+        // Distância até o mouse → controla a força
+        float distToMouse = Vector2.Distance(cachedStartPos, cachedMouseWorldPos);
+        float t = Mathf.Clamp01(distToMouse / maxChargeDistance);
+        float launchSpeed = Mathf.Lerp(minLaunchSpeed, maxLaunchSpeed, t);
+
+        Vector2 initialVelocity = dir * launchSpeed;
+
+        // Instancia projétil
+        Vector3 spawnPos = cachedStartPos; // já é muzzle ou posição do player
+        Quaternion spawnRot = Quaternion.identity;
+
+        GameObject projGO = Instantiate(projectilePrefab, spawnPos, spawnRot);
+        Projectile proj = projGO.GetComponent<Projectile>();
+
+        // Importante: seu prefab deve ter o script Projectile no GO raiz
+        proj.Initialize(
+            initialVelocity,
+            gravityStrength,
+            projectileRotationSpeed
+        );
     }
 }

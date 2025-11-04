@@ -239,6 +239,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   projectilePrefab: {fileID: 7057132163050103756, guid: 1ca53cc9f42d44031b96983a70357562, type: 3}
   target: {fileID: 3875975810400074916, guid: 5c4d80730d28a44bea48eaf96aa57f69, type: 3}
+  muzzleTransform: {fileID: 0}
   baseShootRate: 2
   shootRateNoiseAmount: 0.25
   baseProjectileMaxMoveSpeed: 10
@@ -268,6 +269,12 @@ MonoBehaviour:
     m_PostInfinity: 2
     m_RotationOrder: 4
   showDebugInfo: 0
+  animator: {fileID: 0}
+  shootBoolName: is_shooting
+  shootStateName: Shoot
+  shootClipMaxLength: 0.6
+  fireFailsafeIfNoEvent: 1
+  fireFailsafeDelay: 0.2
 --- !u!114 &219918344
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -552,11 +559,18 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   projectilePrefab: {fileID: 1547535765}
+  muzzleTransform: {fileID: 0}
   minLaunchSpeed: 5
   maxLaunchSpeed: 20
   maxChargeDistance: 10
   gravityStrength: 9
   projectileRotationSpeed: 0
+  animator: {fileID: 0}
+  shootBoolName: is_shooting
+  shootStateName: Shoot
+  shootClipMaxLength: 0.6
+  fireFailsafeIfNoEvent: 1
+  fireFailsafeDelay: 0.15
 --- !u!114 &1182712017
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -677,6 +691,28 @@ LineRenderer:
   m_UseWorldSpace: 1
   m_Loop: 0
   m_ApplyActiveColorSpace: 1
+--- !u!95 &1182712021
+Animator:
+  serializedVersion: 7
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1182712015}
+  m_Enabled: 1
+  m_Avatar: {fileID: 0}
+  m_Controller: {fileID: 9100000, guid: 17ab3c6d1785840f79eed5a382dc553e, type: 2}
+  m_CullingMode: 0
+  m_UpdateMode: 0
+  m_ApplyRootMotion: 0
+  m_LinearVelocityBlending: 0
+  m_StabilizeFeet: 0
+  m_AnimatePhysics: 0
+  m_WarningMessage: 
+  m_HasTransformHierarchy: 1
+  m_AllowConstantClipSamplingOptimization: 1
+  m_KeepAnimatorStateOnDisable: 0
+  m_WriteDefaultValuesOnDisable: 0
 --- !u!1 &1547535765 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 7057132163050103756, guid: 1ca53cc9f42d44031b96983a70357562, type: 3}
@@ -793,9 +829,21 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 2493099959875508381, guid: 1ca53cc9f42d44031b96983a70357562, type: 3}
+      propertyPath: m_Enabled
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 7057132163050103756, guid: 1ca53cc9f42d44031b96983a70357562, type: 3}
       propertyPath: m_Name
       value: Projectile
+      objectReference: {fileID: 0}
+    - target: {fileID: 7551995882513135882, guid: 1ca53cc9f42d44031b96983a70357562, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 7551995882513135882, guid: 1ca53cc9f42d44031b96983a70357562, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 7551995882513135882, guid: 1ca53cc9f42d44031b96983a70357562, type: 3}
       propertyPath: m_LocalPosition.x
@@ -853,6 +901,22 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 2176392750241848952, guid: 5c4d80730d28a44bea48eaf96aa57f69, type: 3}
+      propertyPath: m_Sprite
+      value: 
+      objectReference: {fileID: 4334783836991956000, guid: 84de536718baf431c932b4707552b3ba, type: 3}
+    - target: {fileID: 2176392750241848952, guid: 5c4d80730d28a44bea48eaf96aa57f69, type: 3}
+      propertyPath: m_SortingOrder
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 3875975810400074916, guid: 5c4d80730d28a44bea48eaf96aa57f69, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 1.9
+      objectReference: {fileID: 0}
+    - target: {fileID: 3875975810400074916, guid: 5c4d80730d28a44bea48eaf96aa57f69, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 1.9
+      objectReference: {fileID: 0}
     - target: {fileID: 3875975810400074916, guid: 5c4d80730d28a44bea48eaf96aa57f69, type: 3}
       propertyPath: m_LocalPosition.x
       value: -5.36
@@ -910,6 +974,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 8938343246843896107, guid: 5c4d80730d28a44bea48eaf96aa57f69, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1182712017}
+    - targetCorrespondingSourceObject: {fileID: 8938343246843896107, guid: 5c4d80730d28a44bea48eaf96aa57f69, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1182712021}
   m_SourcePrefab: {fileID: 100100000, guid: 5c4d80730d28a44bea48eaf96aa57f69, type: 3}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
