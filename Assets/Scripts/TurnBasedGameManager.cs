@@ -10,8 +10,13 @@ public class TurnBasedGameManager : MonoBehaviour
     [SerializeField] private EnemyShooterAdvancedAI enemyShooter;
 
     [Header("Turn Settings")]
-    [SerializeField] private float enemyTurnDelay = 1f; // Delay antes do AI atirar
+    [SerializeField] private float enemyTurnDelay = 1f; // Delay inicial quando turno do inimigo começa
+    [SerializeField] private float enemyShootDelayAfterStandUp = 0.5f; // Delay após ficar em pé antes de atirar
     [SerializeField] private float turnTransitionDelay = 0.5f; // Delay entre turnos
+
+	[Header("Stand Up Settings")]
+	[SerializeField] private float playerStandUpDuration = 0.25f;
+	[SerializeField] private float enemyStandUpDuration = 0.25f;
 
     [Header("UI References")]
     [SerializeField] private TextMeshProUGUI currentPlayerText; // Texto mostrando de quem é o turno
@@ -31,6 +36,10 @@ public class TurnBasedGameManager : MonoBehaviour
 
     [SerializeField] private TurnState currentTurnState = TurnState.PlayerTurn;
     private bool gameStarted = false;
+    
+    // Projectile tracking
+    private Projectile currentProjectile;
+    private bool waitingForProjectileDestruction = false;
 
     // Events
     public System.Action<TurnState> OnTurnChanged;
@@ -72,6 +81,13 @@ public class TurnBasedGameManager : MonoBehaviour
         if (playerShooter != null)
         {
             playerShooter.ManualShotFired += OnPlayerShotFired;
+            playerShooter.ProjectileCreated += OnProjectileCreated;
+        }
+        
+        // Subscrever aos eventos do inimigo
+        if (enemyShooter != null)
+        {
+            enemyShooter.ProjectileCreated += OnProjectileCreated;
         }
     }
 
@@ -81,7 +97,16 @@ public class TurnBasedGameManager : MonoBehaviour
         if (playerShooter != null)
         {
             playerShooter.ManualShotFired -= OnPlayerShotFired;
+            playerShooter.ProjectileCreated -= OnProjectileCreated;
         }
+        
+        if (enemyShooter != null)
+        {
+            enemyShooter.ProjectileCreated -= OnProjectileCreated;
+        }
+        
+        // Limpar referência do projétil
+        UntrackCurrentProjectile();
     }
 
     public void StartGame()
@@ -128,7 +153,7 @@ public class TurnBasedGameManager : MonoBehaviour
         OnGameEnded?.Invoke();
     }
 
-    private void StartPlayerTurn()
+	private void StartPlayerTurn()
     {
         if (!gameStarted) return;
 
@@ -136,14 +161,14 @@ public class TurnBasedGameManager : MonoBehaviour
         
         currentTurnState = TurnState.PlayerTurn;
         
-        // Habilitar tiro do jogador
-        if (playerShooter != null)
-        {
-            playerShooter.SetManualTurnEnabled(true);
-        }
+		// Desabilitar tiro do jogador até ficar em pé
+		if (playerShooter != null) playerShooter.SetManualTurnEnabled(false);
         
         UpdateUI();
         OnTurnChanged?.Invoke(currentTurnState);
+
+		// Fluxo: levantar e só depois habilitar a mira/tiro
+		StartCoroutine(BeginPlayerTurnFlow());
     }
 
     private void StartEnemyTurn()
@@ -170,7 +195,17 @@ public class TurnBasedGameManager : MonoBehaviour
     private IEnumerator ExecuteEnemyTurnWithDelay()
     {
         yield return new WaitForSeconds(enemyTurnDelay);
-        
+		
+		// Garantir que o inimigo fique em pé antes de atirar
+		yield return StandActorUprightIfPossible(enemyShooter ? enemyShooter.transform : null, enemyStandUpDuration);
+
+        // Delay adicional após ficar em pé antes de atirar
+        if (enemyShootDelayAfterStandUp > 0f)
+        {
+            Debug.Log($"[TurnBasedGameManager] Enemy standing ready, waiting {enemyShootDelayAfterStandUp}s before shooting...");
+            yield return new WaitForSeconds(enemyShootDelayAfterStandUp);
+        }
+
         if (enemyShooter != null && enemyShooter.CanExecuteTurnShot())
         {
             Debug.Log("[TurnBasedGameManager] Enemy executing shot!");
@@ -179,21 +214,97 @@ public class TurnBasedGameManager : MonoBehaviour
         else
         {
             Debug.LogWarning("[TurnBasedGameManager] Enemy cannot execute shot!");
+            // Se o inimigo não pode atirar, voltar para o jogador após delay
+            yield return new WaitForSeconds(turnTransitionDelay);
+            StartPlayerTurn();
         }
         
-        // Após o tiro do inimigo, voltar para o jogador
-        yield return new WaitForSeconds(turnTransitionDelay);
-        StartPlayerTurn();
+        // Não chamamos StartPlayerTurn() aqui mais, pois isso acontecerá
+        // quando o projétil do inimigo for destruído (via OnCurrentProjectileDestroyed)
+    }
+
+	private IEnumerator BeginPlayerTurnFlow()
+	{
+		// Fica em pé primeiro
+		yield return StandActorUprightIfPossible(playerShooter ? playerShooter.transform : null, playerStandUpDuration);
+		
+		// Agora habilita o tiro manual
+		if (playerShooter != null)
+		{
+			playerShooter.SetManualTurnEnabled(true);
+		}
+	}
+
+	private IEnumerator StandActorUprightIfPossible(Transform actorTransform, float duration)
+	{
+		if (actorTransform == null || duration <= 0f)
+		{
+			yield break;
+		}
+
+		var stand = actorTransform.GetComponentInParent<StandUprightController>();
+		if (stand == null)
+		{
+			stand = actorTransform.gameObject.AddComponent<StandUprightController>();
+		}
+		yield return stand.StandUprightRoutine(duration);
+	}
+
+    private void OnProjectileCreated(Projectile projectile)
+    {
+        if (projectile == null) return;
+        
+        Debug.Log("[TurnBasedGameManager] Projectile created, tracking for turn end.");
+        
+        // Untrack previous projectile if any
+        UntrackCurrentProjectile();
+        
+        // Track new projectile
+        currentProjectile = projectile;
+        waitingForProjectileDestruction = true;
+        currentProjectile.OnProjectileDestroyed += OnCurrentProjectileDestroyed;
+    }
+
+    private void UntrackCurrentProjectile()
+    {
+        if (currentProjectile != null)
+        {
+            currentProjectile.OnProjectileDestroyed -= OnCurrentProjectileDestroyed;
+            currentProjectile = null;
+        }
+        waitingForProjectileDestruction = false;
+    }
+
+    private void OnCurrentProjectileDestroyed()
+    {
+        Debug.Log("[TurnBasedGameManager] Projectile destroyed!");
+        
+        UntrackCurrentProjectile();
+        
+        // If we were waiting for the projectile to end the turn, do it now
+        if (currentTurnState == TurnState.PlayerTurn)
+        {
+            StartCoroutine(TransitionToEnemyTurn());
+        }
+        else if (currentTurnState == TurnState.EnemyTurn)
+        {
+            StartCoroutine(TransitionToPlayerTurn());
+        }
     }
 
     private void OnPlayerShotFired()
     {
         if (currentTurnState != TurnState.PlayerTurn) return;
         
-        Debug.Log("[TurnBasedGameManager] Player shot fired! Switching to enemy turn.");
+        Debug.Log("[TurnBasedGameManager] Player shot fired! Waiting for projectile to disappear...");
         
-        // Pequeno delay antes de mudar para o turno do inimigo
-        StartCoroutine(TransitionToEnemyTurn());
+        // Disable shooting immediately to prevent multiple shots in the same turn
+        if (playerShooter != null)
+        {
+            playerShooter.SetManualTurnEnabled(false);
+        }
+        
+        // Turn will transition when the projectile is destroyed (handled by OnCurrentProjectileDestroyed)
     }
 
     private IEnumerator TransitionToEnemyTurn()
@@ -203,6 +314,15 @@ public class TurnBasedGameManager : MonoBehaviour
         
         yield return new WaitForSeconds(turnTransitionDelay);
         StartEnemyTurn();
+    }
+
+    private IEnumerator TransitionToPlayerTurn()
+    {
+        currentTurnState = TurnState.TurnTransition;
+        UpdateUI();
+        
+        yield return new WaitForSeconds(turnTransitionDelay);
+        StartPlayerTurn();
     }
 
     public void EndCurrentTurn()
@@ -261,6 +381,9 @@ public class TurnBasedGameManager : MonoBehaviour
     {
         // Validações no editor
         if (enemyTurnDelay < 0f) enemyTurnDelay = 0f;
+        if (enemyShootDelayAfterStandUp < 0f) enemyShootDelayAfterStandUp = 0f;
         if (turnTransitionDelay < 0f) turnTransitionDelay = 0f;
+        if (playerStandUpDuration < 0f) playerStandUpDuration = 0f;
+        if (enemyStandUpDuration < 0f) enemyStandUpDuration = 0f;
     }
 }
