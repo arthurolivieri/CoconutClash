@@ -105,6 +105,9 @@ public class EnemyShooterAdvancedAI : MonoBehaviour
     private ShooterSettings currentSettings;
     private AIAimVisualizer aimVisualizer;
 
+    // Event for turn-based system to track projectile
+    public event System.Action<Projectile> ProjectileCreated;
+
     private void Awake()
     {
         CacheSettingsFromFields();
@@ -300,6 +303,9 @@ public class EnemyShooterAdvancedAI : MonoBehaviour
 
         if (aimVisualizer != null)
             aimVisualizer.RecordShot(aimPointPosition, willHit);
+
+        // Notify turn-based system about projectile creation
+        ProjectileCreated?.Invoke(projectile);
 
         if (showDebugInfo)
         {
