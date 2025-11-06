@@ -26,12 +26,21 @@ public class Projectile : MonoBehaviour
     [SerializeField] private float lifetimeSeconds = 10f;
     private float lifeTimer = 0f;
 
+    [Header("Collision Settings")]
+    [SerializeField] private bool destroyOnGroundHit = true;
+    [SerializeField] private bool destroyOnOpponentHit = true;
+    [SerializeField] private string groundTag = "Ground";
+    
+    // Event fired when projectile is destroyed
+    public event System.Action OnProjectileDestroyed;
+
     // ===== Cached components =====
     private Rigidbody2D rb;
     private Collider2D col;
     private SpriteRenderer sr;
 
     private bool guardLogged;
+    private bool isDestroying = false;
 
     private void Awake()
     {
@@ -77,6 +86,10 @@ public class Projectile : MonoBehaviour
         rb.bodyType = RigidbodyType2D.Dynamic;
         rb.gravityScale = gravityStrength / 9.81f;  // convert to Unity gravity units
         rb.linearVelocity = initialVelocity;
+        
+        // Prevent rolling - freeze rotation so projectile only bounces
+        rb.freezeRotation = true;
+        rb.angularVelocity = 0f;
 
         enabled = true;  // we use Update only for cosmetic spin + lifetime
     }
@@ -136,12 +149,18 @@ public class Projectile : MonoBehaviour
         lifeTimer += Time.deltaTime;
         if (lifetimeSeconds > 0f && lifeTimer >= lifetimeSeconds)
         {
-            Destroy(gameObject);
+            DestroyProjectile();
             return;
         }
 
         if (manualPhysics)
         {
+            // Prevent rolling - continuously enforce frozen rotation
+            if (rb != null && rb.angularVelocity != 0f)
+            {
+                rb.angularVelocity = 0f;
+            }
+            
             // cosmetic spin only — movement is handled by Rigidbody2D
             if (spinSpeed != 0f)
                 transform.Rotate(Vector3.forward, spinSpeed * Time.deltaTime);
@@ -203,8 +222,48 @@ public class Projectile : MonoBehaviour
             // Destroy near target (AI only)
             if (Vector3.Distance(transform.position, target.position) < distanceToTargetToDestroyProjectile)
             {
-                Destroy(gameObject);
+                DestroyProjectile();
             }
         }
+    }
+
+    // =========================
+    //    COLLISION HANDLING
+    // =========================
+    private void OnCollisionEnter2D(Collision2D collision)
+    {
+        if (isDestroying) return;
+
+        // Check if hit an opponent (Shooter or EnemyShooterAdvancedAI component)
+        bool hitOpponent = false;
+        if (collision.gameObject.GetComponent<Shooter>() != null ||
+            collision.gameObject.GetComponent<EnemyShooterAdvancedAI>() != null)
+        {
+            hitOpponent = true;
+        }
+
+        if (hitOpponent && destroyOnOpponentHit)
+        {
+            Debug.Log($"[Projectile] Hit opponent: {collision.gameObject.name}");
+            DestroyProjectile();
+            return;
+        }
+
+        // Check if hit ground - destroy immediately
+        if (collision.gameObject.CompareTag(groundTag) && destroyOnGroundHit)
+        {
+            Debug.Log($"[Projectile] Hit ground - destroying");
+            DestroyProjectile();
+            return;
+        }
+    }
+
+    private void DestroyProjectile()
+    {
+        if (isDestroying) return;
+        isDestroying = true;
+        
+        OnProjectileDestroyed?.Invoke();
+        Destroy(gameObject);
     }
 }
