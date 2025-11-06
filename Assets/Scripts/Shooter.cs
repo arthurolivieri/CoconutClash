@@ -59,6 +59,7 @@ public class Shooter : MonoBehaviour
     private Vector3 cachedMouseWorldPos;
 
     public event Action ManualShotFired;
+    public event Action<Projectile> ProjectileCreated;
 
     private void Awake()
     {
@@ -150,6 +151,8 @@ public class Shooter : MonoBehaviour
         if (!proj) proj = go.AddComponent<Projectile>();
 
         proj.Initialize(initialVelocity, gravityStrength, projectileRotationSpeed);
+        
+        ProjectileCreated?.Invoke(proj);
         ManualShotFired?.Invoke();
     }
 
@@ -181,5 +184,55 @@ public class Shooter : MonoBehaviour
     public void SetManualTurnEnabled(bool enabled)
     {
         manualTurnEnabled = enabled;
+    }
+
+    // ========================= PREVIEW SUPPORT =========================
+    /// <summary>
+    /// Returns the gravity strength used for manual physics shots (in m/s^2).
+    /// </summary>
+    public float GetGravityStrength()
+    {
+        return gravityStrength;
+    }
+
+    /// <summary>
+    /// Returns the current muzzle/world start position used for shooting.
+    /// </summary>
+    public Vector3 GetMuzzleOrPosition()
+    {
+        Vector3 p = muzzleTransform ? muzzleTransform.position : transform.position;
+        p.z = 0f;
+        return p;
+    }
+
+    /// <summary>
+    /// Predicts the initial velocity that will be used if the player shoots towards targetPos.
+    /// Mirrors the manual shooting charge logic.
+    /// </summary>
+    public Vector2 PredictInitialVelocity(Vector2 startPos, Vector2 targetPos)
+    {
+        Vector2 dir = (targetPos - startPos).normalized;
+        float dist = Vector2.Distance(startPos, targetPos);
+        float t = Mathf.Clamp01(dist / Mathf.Max(0.0001f, maxChargeDistance));
+        float speed = Mathf.Lerp(minLaunchSpeed, maxLaunchSpeed, t);
+        return dir * speed;
+    }
+
+    /// <summary>
+    /// Returns true if this shooter is in manual (player) mode.
+    /// </summary>
+    public bool IsManualMode()
+    {
+        return useManualShooting;
+    }
+
+    /// <summary>
+    /// Returns true if the player is currently allowed to aim/shoot (considering turn restriction).
+    /// </summary>
+    public bool IsManualAimAllowed()
+    {
+        if (!useManualShooting) return false;
+        if (!restrictManualShootingToTurn) return true;
+        return manualTurnEnabled;
     }
 }
