@@ -5,6 +5,7 @@ TagManager:
   serializedVersion: 3
   tags:
   - Aim
+  - Ground
   layers:
   - Default
   - TransparentFX
