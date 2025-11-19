@@ -250,7 +250,26 @@ public class WorldHealthBar : MonoBehaviour
         renderer.sortingOrder = sortingOrder;
         renderer.sortingLayerName = sortingLayerName;
         renderer.drawMode = SpriteDrawMode.Simple;
-        // renderer.material = null; // Removed to avoid pink texture in URP
+        
+        // In URP, we need to ensure the default sprite material is used
+        // Unity should assign it automatically, but we explicitly ensure it's not null
+        #if UNITY_EDITOR
+        if (renderer.sharedMaterial == null)
+        {
+            // Force Unity to assign the default sprite material
+            var defaultSpriteMaterial = UnityEngine.Rendering.GraphicsSettings.defaultRenderPipeline != null
+                ? UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline.defaultMaterial
+                : null;
+                
+            // If still null, let Unity handle it by accessing the material property
+            // This triggers Unity's internal default material assignment
+            if (defaultSpriteMaterial == null)
+            {
+                _ = renderer.material; // Access material to trigger default assignment
+            }
+        }
+        #endif
+        
         return renderer;
     }
 

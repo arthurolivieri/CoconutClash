@@ -4,7 +4,10 @@ using UnityEngine;
 /// <summary>
 /// Handles the lifetime and animation of a floating damage number.
 /// Use DamageNumberPopup.Spawn(...) to show one.
+/// IMPORTANT: This component should NOT be added to GameObjects in the scene.
+/// It is only meant to be dynamically spawned at runtime via DamageNumberPopup.Spawn().
 /// </summary>
+[DisallowMultipleComponent]
 public class DamageNumberPopup : MonoBehaviour
 {
     [Header("Popup Settings")]
