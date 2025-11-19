@@ -93,6 +93,9 @@ public class WorldHealthBar : MonoBehaviour
 
     private void EnsureVisuals()
     {
+        if (!CanModifyHierarchy())
+            return;
+
         EnsurePixelSprite();
         EnsureBarRoot();
         backgroundRenderer = EnsureRenderer(backgroundRenderer, GeneratedBackgroundName, backgroundColor * 0.9f, -0.02f);
@@ -203,6 +206,11 @@ public class WorldHealthBar : MonoBehaviour
         }
 
         return null;
+    }
+
+    private bool CanModifyHierarchy()
+    {
+        return gameObject.scene.IsValid();
     }
 
     private SpriteRenderer EnsureRenderer(SpriteRenderer renderer, string childName, Color color, float zOffset)
