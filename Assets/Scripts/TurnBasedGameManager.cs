@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using System.Collections;
 using TMPro;
+using UnityEngine.SceneManagement;
 
 public class TurnBasedGameManager : MonoBehaviour
 {
@@ -14,9 +15,9 @@ public class TurnBasedGameManager : MonoBehaviour
     [SerializeField] private float enemyShootDelayAfterStandUp = 0.5f; // Delay após ficar em pé antes de atirar
     [SerializeField] private float turnTransitionDelay = 0.5f; // Delay entre turnos
 
-	[Header("Stand Up Settings")]
-	[SerializeField] private float playerStandUpDuration = 0.25f;
-	[SerializeField] private float enemyStandUpDuration = 0.25f;
+    [Header("Stand Up Settings")]
+    [SerializeField] private float playerStandUpDuration = 0.25f;
+    [SerializeField] private float enemyStandUpDuration = 0.25f;
 
     [Header("UI References")]
     [SerializeField] private TextMeshProUGUI currentPlayerText; // Texto mostrando de quem é o turno
@@ -32,6 +33,16 @@ public class TurnBasedGameManager : MonoBehaviour
 
     [Header("Camera")]
     [SerializeField] private ProjectileCamera projectileCamera;
+
+    [Header("Scene Settings")]
+    [Tooltip("Nome da cena de vitória (quando todos os inimigos morrem).")]
+    [SerializeField] private string victorySceneName = "VictoryScene";
+    
+    [Tooltip("Nome da cena de Game Over (quando o player morre).")]
+    [SerializeField] private string gameOverSceneName = "GameOver";
+    
+    [Tooltip("Delay antes de carregar a cena de vitória/derrota (pra dar tempo de ver o que aconteceu).")]
+    [SerializeField] private float sceneLoadDelay = 1.0f;
 
     public enum TurnState
     {
@@ -175,7 +186,7 @@ public class TurnBasedGameManager : MonoBehaviour
         OnGameEnded?.Invoke();
     }
 
-	private void StartPlayerTurn()
+    private void StartPlayerTurn()
     {
         if (!gameStarted) return;
 
@@ -183,11 +194,11 @@ public class TurnBasedGameManager : MonoBehaviour
         
         currentTurnState = TurnState.PlayerTurn;
         
-		// Desabilitar tiro do jogador até ficar em pé
-		if (playerShooter != null) playerShooter.SetManualTurnEnabled(false);
+        // Desabilitar tiro do jogador até ficar em pé
+        if (playerShooter != null) playerShooter.SetManualTurnEnabled(false);
         
         // Focar câmera no player
-        if (projectileCamera != null)
+        if (projectileCamera != null && playerShooter != null)
         {
             projectileCamera.SetFallbackTarget(playerShooter.transform);
             projectileCamera.ResetToFallback();
@@ -196,8 +207,8 @@ public class TurnBasedGameManager : MonoBehaviour
         UpdateUI();
         OnTurnChanged?.Invoke(currentTurnState);
 
-		// Fluxo: levantar e só depois habilitar a mira/tiro
-		StartCoroutine(BeginPlayerTurnFlow());
+        // Fluxo: levantar e só depois habilitar a mira/tiro
+        StartCoroutine(BeginPlayerTurnFlow());
     }
 
     private void StartEnemyTurn()
@@ -215,7 +226,7 @@ public class TurnBasedGameManager : MonoBehaviour
         }
         
         // Focar câmera no inimigo
-        if (projectileCamera != null)
+        if (projectileCamera != null && enemyShooter != null)
         {
             projectileCamera.SetFallbackTarget(enemyShooter.transform);
             projectileCamera.ResetToFallback();
@@ -231,9 +242,9 @@ public class TurnBasedGameManager : MonoBehaviour
     private IEnumerator ExecuteEnemyTurnWithDelay()
     {
         yield return new WaitForSeconds(enemyTurnDelay);
-		
-		// Garantir que o inimigo fique em pé antes de atirar
-		yield return StandActorUprightIfPossible(enemyShooter ? enemyShooter.transform : null, enemyStandUpDuration);
+        
+        // Garantir que o inimigo fique em pé antes de atirar
+        yield return StandActorUprightIfPossible(enemyShooter ? enemyShooter.transform : null, enemyStandUpDuration);
 
         // Delay adicional após ficar em pé antes de atirar
         if (enemyShootDelayAfterStandUp > 0f)
@@ -259,32 +270,32 @@ public class TurnBasedGameManager : MonoBehaviour
         // quando o projétil do inimigo for destruído (via OnCurrentProjectileDestroyed)
     }
 
-	private IEnumerator BeginPlayerTurnFlow()
-	{
-		// Fica em pé primeiro
-		yield return StandActorUprightIfPossible(playerShooter ? playerShooter.transform : null, playerStandUpDuration);
-		
-		// Agora habilita o tiro manual
-		if (playerShooter != null)
-		{
-			playerShooter.SetManualTurnEnabled(true);
-		}
-	}
+    private IEnumerator BeginPlayerTurnFlow()
+    {
+        // Fica em pé primeiro
+        yield return StandActorUprightIfPossible(playerShooter ? playerShooter.transform : null, playerStandUpDuration);
+        
+        // Agora habilita o tiro manual
+        if (playerShooter != null)
+        {
+            playerShooter.SetManualTurnEnabled(true);
+        }
+    }
 
-	private IEnumerator StandActorUprightIfPossible(Transform actorTransform, float duration)
-	{
-		if (actorTransform == null || duration <= 0f)
-		{
-			yield break;
-		}
+    private IEnumerator StandActorUprightIfPossible(Transform actorTransform, float duration)
+    {
+        if (actorTransform == null || duration <= 0f)
+        {
+            yield break;
+        }
 
-		var stand = actorTransform.GetComponentInParent<StandUprightController>();
-		if (stand == null)
-		{
-			stand = actorTransform.gameObject.AddComponent<StandUprightController>();
-		}
-		yield return stand.StandUprightRoutine(duration);
-	}
+        var stand = actorTransform.GetComponentInParent<StandUprightController>();
+        if (stand == null)
+        {
+            stand = actorTransform.gameObject.AddComponent<StandUprightController>();
+        }
+        yield return stand.StandUprightRoutine(duration);
+    }
 
     private void OnProjectileCreated(Projectile projectile)
     {
@@ -425,6 +436,7 @@ public class TurnBasedGameManager : MonoBehaviour
         if (turnTransitionDelay < 0f) turnTransitionDelay = 0f;
         if (playerStandUpDuration < 0f) playerStandUpDuration = 0f;
         if (enemyStandUpDuration < 0f) enemyStandUpDuration = 0f;
+        if (sceneLoadDelay < 0f) sceneLoadDelay = 0f;
     }
 
     private void AssignDefaultHealthReferences()
@@ -531,6 +543,11 @@ public class TurnBasedGameManager : MonoBehaviour
         Debug.Log("[TurnBasedGameManager] Stage cleared! All enemies defeated.");
         EndGame(TurnState.StageCleared);
         OnStageCleared?.Invoke();
+
+        if (!string.IsNullOrEmpty(victorySceneName))
+        {
+            StartCoroutine(LoadSceneAfterDelay(victorySceneName));
+        }
     }
 
     private void HandlePlayerDefeat()
@@ -540,5 +557,20 @@ public class TurnBasedGameManager : MonoBehaviour
         Debug.Log("[TurnBasedGameManager] Player defeated!");
         EndGame(TurnState.GameOver);
         OnPlayerDefeated?.Invoke();
+
+        if (!string.IsNullOrEmpty(gameOverSceneName))
+        {
+            StartCoroutine(LoadSceneAfterDelay(gameOverSceneName));
+        }
+    }
+
+    private IEnumerator LoadSceneAfterDelay(string sceneName)
+    {
+        if (sceneLoadDelay > 0f)
+        {
+            yield return new WaitForSeconds(sceneLoadDelay);
+        }
+
+        SceneManager.LoadScene(sceneName);
     }
 }

@@ -220,7 +220,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c747e98cf25a941739e219aa3b217e42, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  baseDamage: 10
+  baseDamage: 20
   defaultTeam: 0
   distanceToTargetToDestroyProjectile: 0.2
   lifetimeSeconds: 10
