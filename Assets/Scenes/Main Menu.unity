@@ -233,7 +233,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 3590794199559518674, guid: 14cc858d977f84610bc724f80b97d0d0, type: 3}
+  m_Sprite: {fileID: 3794550611322748858, guid: b5da031fc0ea64770939fa570e383866, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -766,6 +766,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 127069315db6248778b82e2bce65de07, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  menuSceneIndex: 0
+  firstLevelSceneIndex: 1
+  secondLevelSceneIndex: 4
 --- !u!4 &1598155377
 Transform:
   m_ObjectHideFlags: 0
