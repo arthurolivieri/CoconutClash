@@ -10,17 +10,21 @@ public class MenuManager : MonoBehaviour
     [Tooltip("Índice da primeira fase (fase atual).")]
     [SerializeField] private int firstLevelSceneIndex = 1;
 
-    [Tooltip("Índice da segunda fase (para onde a VictoryScene deve mandar).")]
+    [Tooltip("Índice da segunda fase.")]
     [SerializeField] private int secondLevelSceneIndex = 4;
 
+    [Tooltip("Índice da VictoryScene2 (após vencer a fase 2).")]
+    [SerializeField] private int victoryScene2Index = 5;
+
+    [Tooltip("Índice da terceira fase.")]
+    [SerializeField] private int thirdLevelSceneIndex = 6;
+
     // --------- MENU PRINCIPAL ---------
-    // Botão "Play" no menu principal -> começa a fase 1
     public void PlayGame()
     {
         SceneManager.LoadScene(firstLevelSceneIndex);
     }
 
-    // Botão "Quit" (opcional, se quiser sair do jogo)
     public void QuitGame()
     {
         Debug.Log("[MenuManager] Quit Game");
@@ -28,22 +32,31 @@ public class MenuManager : MonoBehaviour
     }
 
     // --------- GAME OVER SCENE (3) ---------
-    // Botão "Voltar para o menu principal"
     public void GoToMainMenu()
     {
         SceneManager.LoadScene(menuSceneIndex);
     }
 
-    // Botão "Tentar de novo / Voltar para a fase"
     public void RestartFirstLevel()
     {
         SceneManager.LoadScene(firstLevelSceneIndex);
     }
 
-    // --------- VICTORY SCENE (2) ---------
-    // Botão "Próxima fase" na VictoryScene -> vai para a fase 2
+    // --------- VICTORY SCENE 1 ---------
     public void GoToSecondLevel()
     {
         SceneManager.LoadScene(secondLevelSceneIndex);
+    }
+
+    // --------- VICTORY SCENE 2 ---------
+    public void GoToVictoryScene2()
+    {
+        SceneManager.LoadScene(victoryScene2Index);
+    }
+
+    // --------- VICTORY SCENE 3 (novo) ---------
+    public void GoToThirdLevel()
+    {
+        SceneManager.LoadScene(thirdLevelSceneIndex);
     }
 }

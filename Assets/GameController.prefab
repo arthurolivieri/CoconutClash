@@ -1,0 +1,65 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &8802677580580944698
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 7552275012293077873}
+  - component: {fileID: 1798404384919098573}
+  m_Layer: 0
+  m_Name: GameController
+  m_TagString: GameController
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &7552275012293077873
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8802677580580944698}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -1.7486824, y: 1.9683428, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1798404384919098573
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8802677580580944698}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d454d23e954a0482580614b6a99e90b9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  playerShooter: {fileID: 0}
+  enemyShooter: {fileID: 0}
+  enemyTurnDelay: 1
+  enemyShootDelayAfterStandUp: 0.5
+  turnTransitionDelay: 0.5
+  playerStandUpDuration: 0.25
+  enemyStandUpDuration: 0.25
+  currentPlayerText: {fileID: 0}
+  endTurnButton: {fileID: 0}
+  autoStartGame: 1
+  allowTurnSkip: 0
+  playerHealth: {fileID: 0}
+  enemyHealths:
+  - {fileID: 0}
+  projectileCamera: {fileID: 0}
+  victorySceneName: VictoryScene
+  gameOverSceneName: GameOver
+  sceneLoadDelay: 1
+  currentTurnState: 0
