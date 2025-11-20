@@ -35,8 +35,14 @@ public class TurnBasedGameManager : MonoBehaviour
     [SerializeField] private ProjectileCamera projectileCamera;
 
     [Header("Scene Settings")]
-    [Tooltip("Nome da cena de vitória (quando todos os inimigos morrem).")]
-    [SerializeField] private string victorySceneName = "VictoryScene";
+    [Tooltip("Nome da cena de vitória para Level 1.")]
+    [SerializeField] private string victorySceneLevel1 = "VictoryScene";
+    
+    [Tooltip("Nome da cena de vitória para Level 2.")]
+    [SerializeField] private string victorySceneLevel2 = "VictoryScene2";
+    
+    [Tooltip("Nome da cena de vitória final (Level 3).")]
+    [SerializeField] private string finalVictoryScene = "FInalVictoryScene";
     
     [Tooltip("Nome da cena de Game Over (quando o player morre).")]
     [SerializeField] private string gameOverSceneName = "GameOver";
@@ -544,10 +550,66 @@ public class TurnBasedGameManager : MonoBehaviour
         EndGame(TurnState.StageCleared);
         OnStageCleared?.Invoke();
 
-        if (!string.IsNullOrEmpty(victorySceneName))
+        // Determine which victory scene to load based on current level
+        string victorySceneToLoad = GetVictorySceneForCurrentLevel();
+        
+        if (!string.IsNullOrEmpty(victorySceneToLoad))
         {
-            StartCoroutine(LoadSceneAfterDelay(victorySceneName));
+            Debug.Log($"[TurnBasedGameManager] Loading victory scene: {victorySceneToLoad}");
+            StartCoroutine(LoadSceneAfterDelay(victorySceneToLoad));
         }
+        else
+        {
+            Debug.LogWarning("[TurnBasedGameManager] No victory scene found for current level!");
+        }
+    }
+    
+    /// <summary>
+    /// Determines which victory scene to load based on the current level/scene name
+    /// </summary>
+    private string GetVictorySceneForCurrentLevel()
+    {
+        string currentSceneName = SceneManager.GetActiveScene().name;
+        
+        Debug.Log($"[TurnBasedGameManager] Current scene: {currentSceneName}");
+        
+        // Check which level we're on based on scene name
+        if (currentSceneName.Contains("Level1") || currentSceneName == "Level1")
+        {
+            Debug.Log("[TurnBasedGameManager] Detected Level 1 - loading VictoryScene");
+            return victorySceneLevel1;
+        }
+        else if (currentSceneName.Contains("Level2") || currentSceneName == "Level2")
+        {
+            Debug.Log("[TurnBasedGameManager] Detected Level 2 - loading VictoryScene2");
+            return victorySceneLevel2;
+        }
+        else if (currentSceneName.Contains("Level3") || currentSceneName == "Level3")
+        {
+            Debug.Log("[TurnBasedGameManager] Detected Level 3 - loading FinalVictoryScene");
+            return finalVictoryScene;
+        }
+        else
+        {
+            // Fallback: try to detect by build index
+            int currentBuildIndex = SceneManager.GetActiveScene().buildIndex;
+            if (currentBuildIndex == 1) // Level1
+            {
+                return victorySceneLevel1;
+            }
+            else if (currentBuildIndex == 4) // Level2
+            {
+                return victorySceneLevel2;
+            }
+            else if (currentBuildIndex == 6) // Level3
+            {
+                return finalVictoryScene;
+            }
+        }
+        
+        // Default fallback
+        Debug.LogWarning($"[TurnBasedGameManager] Could not determine level from scene '{currentSceneName}' (build index: {SceneManager.GetActiveScene().buildIndex}). Using default VictoryScene.");
+        return victorySceneLevel1;
     }
 
     private void HandlePlayerDefeat()

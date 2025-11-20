@@ -19,6 +19,9 @@ public class MenuManager : MonoBehaviour
     [Tooltip("Índice da terceira fase.")]
     [SerializeField] private int thirdLevelSceneIndex = 6;
 
+    [Tooltip("Índice da FinalVictoryScene (após vencer a fase 3).")]
+    [SerializeField] private int finalVictorySceneIndex = 7;
+
     // --------- MENU PRINCIPAL ---------
     public void PlayGame()
     {
@@ -54,9 +57,23 @@ public class MenuManager : MonoBehaviour
         SceneManager.LoadScene(victoryScene2Index);
     }
 
-    // --------- VICTORY SCENE 3 (novo) ---------
+    // --------- VICTORY SCENE 2 → LEVEL 3 ---------
     public void GoToThirdLevel()
     {
         SceneManager.LoadScene(thirdLevelSceneIndex);
+    }
+
+    // --------- FINAL VICTORY SCENE ---------
+    public void GoToMainMenuFromFinal()
+    {
+        SceneManager.LoadScene(menuSceneIndex);
+    }
+
+    // --------- GAME OVER (can restart from any level) ---------
+    public void RestartCurrentLevel()
+    {
+        // Try to detect which level we came from and restart it
+        // For now, just restart Level 1 - you can enhance this later
+        SceneManager.LoadScene(firstLevelSceneIndex);
     }
 }
