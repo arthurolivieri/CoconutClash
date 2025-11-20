@@ -73,8 +73,8 @@ SpriteRenderer:
   m_AutoUVMaxDistance: 0.5
   m_AutoUVMaxAngle: 89
   m_LightmapParameters: {fileID: 0}
-  m_SortingLayerID: 0
-  m_SortingLayer: 0
+  m_SortingLayerID: -1092573669
+  m_SortingLayer: 7
   m_SortingOrder: 0
   m_Sprite: {fileID: 4097144792221710411, guid: 2747aaa402f3e44ff9f0fe3725d98867, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
@@ -160,8 +160,8 @@ SpriteRenderer:
   m_AutoUVMaxDistance: 0.5
   m_AutoUVMaxAngle: 89
   m_LightmapParameters: {fileID: 0}
-  m_SortingLayerID: 0
-  m_SortingLayer: 0
+  m_SortingLayerID: -1092573669
+  m_SortingLayer: 7
   m_SortingOrder: 0
   m_Sprite: {fileID: 4097144792221710411, guid: 2747aaa402f3e44ff9f0fe3725d98867, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
@@ -220,3 +220,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c747e98cf25a941739e219aa3b217e42, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  baseDamage: 10
+  defaultTeam: 0
+  distanceToTargetToDestroyProjectile: 0.2
+  lifetimeSeconds: 10
+  destroyOnGroundHit: 1
+  destroyOnOpponentHit: 1
+  groundTag: Ground

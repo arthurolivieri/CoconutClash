@@ -23,7 +23,7 @@ public class WorldHealthBar : MonoBehaviour
     };
     [SerializeField] private bool hideWhenFull = false;
     [SerializeField] private int sortingOrder = 350;
-    [SerializeField] private string sortingLayerName = "Default";
+    [SerializeField] private string sortingLayerName = "Player";
 
     [SerializeField, HideInInspector] private Transform barRoot;
     [SerializeField, HideInInspector] private SpriteRenderer backgroundRenderer;
@@ -247,8 +247,6 @@ public class WorldHealthBar : MonoBehaviour
         var renderer = t.gameObject.AddComponent<SpriteRenderer>();
         renderer.sprite = pixelSprite;
         renderer.color = color;
-        renderer.sortingOrder = sortingOrder;
-        renderer.sortingLayerName = sortingLayerName;
         renderer.drawMode = SpriteDrawMode.Simple;
         
         // In URP, we need to ensure the default sprite material is used
@@ -269,6 +267,9 @@ public class WorldHealthBar : MonoBehaviour
             }
         }
         #endif
+
+        renderer.sortingOrder = sortingOrder;
+        renderer.sortingLayerName = sortingLayerName;
         
         return renderer;
     }

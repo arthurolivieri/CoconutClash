@@ -30,6 +30,9 @@ public class TurnBasedGameManager : MonoBehaviour
     [SerializeField] private Health playerHealth;
     [SerializeField] private Health[] enemyHealths;
 
+    [Header("Camera")]
+    [SerializeField] private ProjectileCamera projectileCamera;
+
     public enum TurnState
     {
         PlayerTurn,
@@ -183,6 +186,13 @@ public class TurnBasedGameManager : MonoBehaviour
 		// Desabilitar tiro do jogador até ficar em pé
 		if (playerShooter != null) playerShooter.SetManualTurnEnabled(false);
         
+        // Focar câmera no player
+        if (projectileCamera != null)
+        {
+            projectileCamera.SetFallbackTarget(playerShooter.transform);
+            projectileCamera.ResetToFallback();
+        }
+        
         UpdateUI();
         OnTurnChanged?.Invoke(currentTurnState);
 
@@ -202,6 +212,13 @@ public class TurnBasedGameManager : MonoBehaviour
         if (playerShooter != null)
         {
             playerShooter.SetManualTurnEnabled(false);
+        }
+        
+        // Focar câmera no inimigo
+        if (projectileCamera != null)
+        {
+            projectileCamera.SetFallbackTarget(enemyShooter.transform);
+            projectileCamera.ResetToFallback();
         }
         
         UpdateUI();
@@ -360,23 +377,23 @@ public class TurnBasedGameManager : MonoBehaviour
         {
             case TurnState.PlayerTurn:
                 currentPlayerText.text = "YOUR TURN - Click to shoot!";
-                currentPlayerText.color = Color.green;
+                currentPlayerText.color = Color.black;
                 break;
             case TurnState.EnemyTurn:
                 currentPlayerText.text = "ENEMY TURN";
-                currentPlayerText.color = Color.red;
+                currentPlayerText.color = Color.black;
                 break;
             case TurnState.TurnTransition:
                 currentPlayerText.text = "...";
-                currentPlayerText.color = Color.yellow;
+                currentPlayerText.color = Color.black;
                 break;
             case TurnState.GameOver:
                 currentPlayerText.text = "GAME OVER";
-                currentPlayerText.color = Color.gray;
+                currentPlayerText.color = Color.black;
                 break;
             case TurnState.StageCleared:
                 currentPlayerText.text = "STAGE CLEARED!";
-                currentPlayerText.color = Color.cyan;
+                currentPlayerText.color = Color.black;
                 break;
         }
     }

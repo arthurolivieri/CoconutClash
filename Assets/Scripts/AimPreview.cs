@@ -260,6 +260,7 @@ public class AimPreview : MonoBehaviour
 
         // Garantir ordem de renderização para ficar acima do cenário
         sr.sortingOrder = 100 + orderIndex;
+        sr.sortingLayerName = "Player";
     }
 
     private void EnsureDots(int count)
@@ -295,6 +296,7 @@ public class AimPreview : MonoBehaviour
         sr.color = dotColor;
         sr.enabled = false;
         sr.sortingOrder = 100 + index;
+        sr.sortingLayerName = "Player";
         return sr;
     }
 
