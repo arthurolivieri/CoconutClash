@@ -251,6 +251,10 @@ public class EnemyShooterAdvancedAI : MonoBehaviour
         if (projectileLayer > 0) projectileObj.layer = projectileLayer;
 
         Projectile projectile = projectileObj.GetComponent<Projectile>();
+        if (projectile == null)
+        {
+            projectile = projectileObj.AddComponent<Projectile>();
+        }
 
         if (usePhysicsShot)
         {

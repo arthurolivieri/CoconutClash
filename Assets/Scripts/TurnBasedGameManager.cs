@@ -25,17 +25,27 @@ public class TurnBasedGameManager : MonoBehaviour
     [Header("Game Settings")]
     [SerializeField] private bool autoStartGame = true;
     [SerializeField] private bool allowTurnSkip = false;
+    
+    [Header("Health Settings")]
+    [SerializeField] private Health playerHealth;
+    [SerializeField] private Health[] enemyHealths;
+
+    [Header("Camera")]
+    [SerializeField] private ProjectileCamera projectileCamera;
 
     public enum TurnState
     {
         PlayerTurn,
         EnemyTurn,
         TurnTransition,
-        GameOver
+        GameOver,
+        StageCleared
     }
 
     [SerializeField] private TurnState currentTurnState = TurnState.PlayerTurn;
     private bool gameStarted = false;
+    private bool playerWasDefeated = false;
+    private int remainingEnemies = 0;
     
     // Projectile tracking
     private Projectile currentProjectile;
@@ -45,6 +55,8 @@ public class TurnBasedGameManager : MonoBehaviour
     public System.Action<TurnState> OnTurnChanged;
     public System.Action OnGameStarted;
     public System.Action OnGameEnded;
+    public System.Action OnStageCleared;
+    public System.Action OnPlayerDefeated;
 
     private void Awake()
     {
@@ -54,6 +66,8 @@ public class TurnBasedGameManager : MonoBehaviour
         
         if (enemyShooter == null)
             enemyShooter = FindObjectOfType<EnemyShooterAdvancedAI>();
+
+        AssignDefaultHealthReferences();
     }
 
     private void Start()
@@ -89,6 +103,8 @@ public class TurnBasedGameManager : MonoBehaviour
         {
             enemyShooter.ProjectileCreated += OnProjectileCreated;
         }
+
+        SubscribeToHealthEvents();
     }
 
     private void OnDisable()
@@ -107,6 +123,8 @@ public class TurnBasedGameManager : MonoBehaviour
         
         // Limpar referência do projétil
         UntrackCurrentProjectile();
+
+        UnsubscribeFromHealthEvents();
     }
 
     public void StartGame()
@@ -116,6 +134,7 @@ public class TurnBasedGameManager : MonoBehaviour
         Debug.Log("[TurnBasedGameManager] Starting turn-based game!");
         
         gameStarted = true;
+        playerWasDefeated = false;
         
         // Configurar modo de turnos
         if (playerShooter != null)
@@ -128,20 +147,23 @@ public class TurnBasedGameManager : MonoBehaviour
             enemyShooter.SetTurnBasedControl(true);
         }
 
+        ResetHealthPools();
+        remainingEnemies = CountAliveEnemies();
+
         // Começar com o turno do jogador
         StartPlayerTurn();
         
         OnGameStarted?.Invoke();
     }
 
-    public void EndGame()
+    public void EndGame(TurnState endState = TurnState.GameOver)
     {
         if (!gameStarted) return;
 
         Debug.Log("[TurnBasedGameManager] Game ended!");
         
         gameStarted = false;
-        currentTurnState = TurnState.GameOver;
+        currentTurnState = endState;
         
         // Desabilitar controles
         if (playerShooter != null)
@@ -164,6 +186,13 @@ public class TurnBasedGameManager : MonoBehaviour
 		// Desabilitar tiro do jogador até ficar em pé
 		if (playerShooter != null) playerShooter.SetManualTurnEnabled(false);
         
+        // Focar câmera no player
+        if (projectileCamera != null)
+        {
+            projectileCamera.SetFallbackTarget(playerShooter.transform);
+            projectileCamera.ResetToFallback();
+        }
+        
         UpdateUI();
         OnTurnChanged?.Invoke(currentTurnState);
 
@@ -183,6 +212,13 @@ public class TurnBasedGameManager : MonoBehaviour
         if (playerShooter != null)
         {
             playerShooter.SetManualTurnEnabled(false);
+        }
+        
+        // Focar câmera no inimigo
+        if (projectileCamera != null)
+        {
+            projectileCamera.SetFallbackTarget(enemyShooter.transform);
+            projectileCamera.ResetToFallback();
         }
         
         UpdateUI();
@@ -341,26 +377,30 @@ public class TurnBasedGameManager : MonoBehaviour
         {
             case TurnState.PlayerTurn:
                 currentPlayerText.text = "YOUR TURN - Click to shoot!";
-                currentPlayerText.color = Color.green;
+                currentPlayerText.color = Color.black;
                 break;
             case TurnState.EnemyTurn:
                 currentPlayerText.text = "ENEMY TURN";
-                currentPlayerText.color = Color.red;
+                currentPlayerText.color = Color.black;
                 break;
             case TurnState.TurnTransition:
                 currentPlayerText.text = "...";
-                currentPlayerText.color = Color.yellow;
+                currentPlayerText.color = Color.black;
                 break;
             case TurnState.GameOver:
                 currentPlayerText.text = "GAME OVER";
-                currentPlayerText.color = Color.gray;
+                currentPlayerText.color = Color.black;
+                break;
+            case TurnState.StageCleared:
+                currentPlayerText.text = "STAGE CLEARED!";
+                currentPlayerText.color = Color.black;
                 break;
         }
     }
 
     // Métodos públicos para controle externo
     public TurnState GetCurrentTurnState() => currentTurnState;
-    public bool IsGameActive() => gameStarted && currentTurnState != TurnState.GameOver;
+    public bool IsGameActive() => gameStarted && currentTurnState != TurnState.GameOver && currentTurnState != TurnState.StageCleared;
     public bool IsPlayerTurn() => currentTurnState == TurnState.PlayerTurn;
     public bool IsEnemyTurn() => currentTurnState == TurnState.EnemyTurn;
 
@@ -385,5 +425,120 @@ public class TurnBasedGameManager : MonoBehaviour
         if (turnTransitionDelay < 0f) turnTransitionDelay = 0f;
         if (playerStandUpDuration < 0f) playerStandUpDuration = 0f;
         if (enemyStandUpDuration < 0f) enemyStandUpDuration = 0f;
+    }
+
+    private void AssignDefaultHealthReferences()
+    {
+        if (playerHealth == null && playerShooter != null)
+        {
+            playerHealth = playerShooter.GetComponentInParent<Health>();
+        }
+
+        bool hasEnemyHealth = enemyHealths != null && enemyHealths.Length > 0;
+        if (!hasEnemyHealth && enemyShooter != null)
+        {
+            var enemyHealth = enemyShooter.GetComponentInParent<Health>();
+            if (enemyHealth != null)
+            {
+                enemyHealths = new[] { enemyHealth };
+            }
+        }
+
+        remainingEnemies = CountAliveEnemies();
+    }
+
+    private void SubscribeToHealthEvents()
+    {
+        if (playerHealth != null)
+        {
+            playerHealth.Died += OnPlayerHealthDepleted;
+        }
+
+        if (enemyHealths == null) return;
+
+        foreach (var enemy in enemyHealths)
+        {
+            if (enemy == null) continue;
+            enemy.Died += OnEnemyHealthDepleted;
+        }
+    }
+
+    private void UnsubscribeFromHealthEvents()
+    {
+        if (playerHealth != null)
+        {
+            playerHealth.Died -= OnPlayerHealthDepleted;
+        }
+
+        if (enemyHealths == null) return;
+
+        foreach (var enemy in enemyHealths)
+        {
+            if (enemy == null) continue;
+            enemy.Died -= OnEnemyHealthDepleted;
+        }
+    }
+
+    private void ResetHealthPools()
+    {
+        if (playerHealth != null)
+        {
+            playerHealth.ResetHealth();
+        }
+
+        if (enemyHealths == null) return;
+
+        foreach (var enemy in enemyHealths)
+        {
+            if (enemy == null) continue;
+            enemy.ResetHealth();
+        }
+    }
+
+    private int CountAliveEnemies()
+    {
+        if (enemyHealths == null || enemyHealths.Length == 0) return 0;
+
+        int alive = 0;
+        foreach (var enemy in enemyHealths)
+        {
+            if (enemy == null) continue;
+            if (!enemy.IsDead) alive++;
+        }
+        return alive;
+    }
+
+    private void OnPlayerHealthDepleted(Health _)
+    {
+        if (playerWasDefeated) return;
+        playerWasDefeated = true;
+        HandlePlayerDefeat();
+    }
+
+    private void OnEnemyHealthDepleted(Health enemy)
+    {
+        remainingEnemies = Mathf.Max(0, remainingEnemies - 1);
+        if (remainingEnemies <= 0)
+        {
+            HandleStageCleared();
+        }
+    }
+
+    private void HandleStageCleared()
+    {
+        if (!gameStarted) return;
+
+        Debug.Log("[TurnBasedGameManager] Stage cleared! All enemies defeated.");
+        EndGame(TurnState.StageCleared);
+        OnStageCleared?.Invoke();
+    }
+
+    private void HandlePlayerDefeat()
+    {
+        if (!gameStarted) return;
+
+        Debug.Log("[TurnBasedGameManager] Player defeated!");
+        EndGame(TurnState.GameOver);
+        OnPlayerDefeated?.Invoke();
     }
 }

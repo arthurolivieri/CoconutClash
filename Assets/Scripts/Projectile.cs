@@ -2,6 +2,10 @@ using UnityEngine;
 
 public class Projectile : MonoBehaviour
 {
+    [Header("Damage")]
+    [SerializeField] private float baseDamage = 10f;
+    [SerializeField] private Health.Team defaultTeam = Health.Team.Neutral;
+
     // ===== MANUAL / PHYSICS MODE =====
     private bool manualPhysics = false;    // if true, use rb physics only
     private float spinSpeed = 0f;          // cosmetic spin (deg/s)
@@ -41,6 +45,8 @@ public class Projectile : MonoBehaviour
 
     private bool guardLogged;
     private bool isDestroying = false;
+    private float activeDamage;
+    private Health.Team activeTeam;
 
     private void Awake()
     {
@@ -68,6 +74,9 @@ public class Projectile : MonoBehaviour
 
         // Do not tick Update until initialized
         enabled = false;
+
+        activeDamage = Mathf.Max(0f, baseDamage);
+        activeTeam = defaultTeam;
     }
 
     // =========================
@@ -234,15 +243,9 @@ public class Projectile : MonoBehaviour
     {
         if (isDestroying) return;
 
-        // Check if hit an opponent (Shooter or EnemyShooterAdvancedAI component)
-        bool hitOpponent = false;
-        if (collision.gameObject.GetComponent<Shooter>() != null ||
-            collision.gameObject.GetComponent<EnemyShooterAdvancedAI>() != null)
-        {
-            hitOpponent = true;
-        }
+        bool damagedOpponent = TryApplyDamage(collision.collider);
 
-        if (hitOpponent && destroyOnOpponentHit)
+        if (damagedOpponent && destroyOnOpponentHit)
         {
             Debug.Log($"[Projectile] Hit opponent: {collision.gameObject.name}");
             DestroyProjectile();
@@ -256,6 +259,18 @@ public class Projectile : MonoBehaviour
             DestroyProjectile();
             return;
         }
+    }
+
+    private bool TryApplyDamage(Collider2D targetCollider)
+    {
+        if (activeDamage <= 0f || targetCollider == null) return false;
+
+        Health targetHealth = targetCollider.GetComponentInParent<Health>();
+        if (targetHealth == null) return false;
+
+        float before = targetHealth.CurrentHealth;
+        targetHealth.TakeDamage(activeDamage, activeTeam, gameObject);
+        return before > targetHealth.CurrentHealth;
     }
 
     private void DestroyProjectile()
