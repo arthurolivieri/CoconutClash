@@ -74,6 +74,12 @@ public class Health : MonoBehaviour
         Damaged?.Invoke(damageAmount);
         HealthChanged?.Invoke(currentHealth, maxHealth);
 
+        // Play damage sound effect
+        if (SFXManager.Instance != null)
+        {
+            SFXManager.Instance.PlayDamageSound();
+        }
+
         if (currentHealth <= 0f)
         {
             HandleDeath();

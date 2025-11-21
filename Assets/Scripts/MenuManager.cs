@@ -25,11 +25,13 @@ public class MenuManager : MonoBehaviour
     // --------- MENU PRINCIPAL ---------
     public void PlayGame()
     {
+        PlayButtonSound();
         SceneManager.LoadScene(firstLevelSceneIndex);
     }
 
     public void QuitGame()
     {
+        PlayButtonSound();
         Debug.Log("[MenuManager] Quit Game");
         Application.Quit();
     }
@@ -37,43 +39,59 @@ public class MenuManager : MonoBehaviour
     // --------- GAME OVER SCENE (3) ---------
     public void GoToMainMenu()
     {
+        PlayButtonSound();
         SceneManager.LoadScene(menuSceneIndex);
     }
 
     public void RestartFirstLevel()
     {
+        PlayButtonSound();
         SceneManager.LoadScene(firstLevelSceneIndex);
     }
 
     // --------- VICTORY SCENE 1 ---------
     public void GoToSecondLevel()
     {
+        PlayButtonSound();
         SceneManager.LoadScene(secondLevelSceneIndex);
     }
 
     // --------- VICTORY SCENE 2 ---------
     public void GoToVictoryScene2()
     {
+        PlayButtonSound();
         SceneManager.LoadScene(victoryScene2Index);
     }
 
     // --------- VICTORY SCENE 2 → LEVEL 3 ---------
     public void GoToThirdLevel()
     {
+        PlayButtonSound();
         SceneManager.LoadScene(thirdLevelSceneIndex);
     }
 
     // --------- FINAL VICTORY SCENE ---------
     public void GoToMainMenuFromFinal()
     {
+        PlayButtonSound();
         SceneManager.LoadScene(menuSceneIndex);
     }
 
     // --------- GAME OVER (can restart from any level) ---------
     public void RestartCurrentLevel()
     {
+        PlayButtonSound();
         // Try to detect which level we came from and restart it
         // For now, just restart Level 1 - you can enhance this later
         SceneManager.LoadScene(firstLevelSceneIndex);
+    }
+
+    // --------- HELPER: Button Sound ---------
+    private void PlayButtonSound()
+    {
+        if (SFXManager.Instance != null)
+        {
+            SFXManager.Instance.PlayButtonSound();
+        }
     }
 }
