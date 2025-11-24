@@ -14,11 +14,19 @@ public class Shooter : MonoBehaviour
     [SerializeField] private float minLaunchSpeed = 5f;
     [SerializeField] private float maxLaunchSpeed = 20f;
     [SerializeField] private float maxChargeDistance = 10f;
-    [SerializeField] private float gravityStrength = 9f;    
+    [SerializeField] private float gravityStrength = 9f;
     [SerializeField] private float projectileRotationSpeed = 180f;
 
     [Header("Muzzle (optional)")]
     [SerializeField] private Transform muzzleTransform;
+
+    // ===== Mobile Input =====
+    [Header("Mobile Input")]
+    [SerializeField] private bool useMobileControls = true;
+    [SerializeField] private float minDragDistanceToShoot = 0.5f; // Minimum drag distance in world units to allow shooting
+
+    private bool isAiming = false;
+    private Vector3 aimTargetPosition;
 
     // ===== ANIMAÇÃO =====
     [Header("Animation")]
@@ -60,6 +68,12 @@ public class Shooter : MonoBehaviour
 
     public event Action ManualShotFired;
     public event Action<Projectile> ProjectileCreated;
+    public event Action OnAimStarted;
+    public event Action OnAimCancelled;
+
+    // Properties for AimPreview to access
+    public bool IsAiming => isAiming;
+    public Vector3 AimTargetPosition => aimTargetPosition;
 
     private void Awake()
     {
@@ -67,14 +81,106 @@ public class Shooter : MonoBehaviour
         if (!animator) animator = GetComponent<Animator>();
     }
 
-    private void Update()
+    private void OnEnable()
     {
-        if (useManualShooting) HandleManual();
-        else HandleAI();
+        // Subscribe to mobile input events
+        if (MobileInputManager.Instance != null)
+        {
+            MobileInputManager.Instance.OnTouchBegan += OnTouchBegan;
+            MobileInputManager.Instance.OnTouchMoved += OnTouchMoved;
+            MobileInputManager.Instance.OnTouchEnded += OnTouchEnded;
+        }
     }
 
-    // ========================= MANUAL =========================
-    private void HandleManual()
+    private void OnDisable()
+    {
+        // Unsubscribe from mobile input events
+        if (MobileInputManager.Instance != null)
+        {
+            MobileInputManager.Instance.OnTouchBegan -= OnTouchBegan;
+            MobileInputManager.Instance.OnTouchMoved -= OnTouchMoved;
+            MobileInputManager.Instance.OnTouchEnded -= OnTouchEnded;
+        }
+    }
+
+    private void Update()
+    {
+        if (useManualShooting)
+        {
+            // Only use legacy input if mobile controls are disabled or MobileInputManager doesn't exist
+            if (!useMobileControls || MobileInputManager.Instance == null)
+            {
+                HandleManualLegacy();
+            }
+            // Mobile input is handled via events
+        }
+        else
+        {
+            HandleAI();
+        }
+    }
+
+    // ========================= MOBILE INPUT HANDLERS =========================
+    private void OnTouchBegan(Vector2 screenPosition)
+    {
+        if (!useManualShooting || !useMobileControls) return;
+        if (projectilePrefab == null) return;
+        if (restrictManualShootingToTurn && !manualTurnEnabled) return;
+
+        // Don't start aiming if touching UI
+        if (MobileInputManager.Instance != null && MobileInputManager.Instance.IsPointerOverUI()) return;
+
+        // Start aiming
+        isAiming = true;
+        cachedStartPos = muzzleTransform ? muzzleTransform.position : transform.position;
+        cachedStartPos.z = 0f;
+
+        // Set initial aim position
+        Vector3 worldPos = mainCam.ScreenToWorldPoint(new Vector3(screenPosition.x, screenPosition.y, -mainCam.transform.position.z));
+        worldPos.z = 0f;
+        aimTargetPosition = worldPos;
+
+        OnAimStarted?.Invoke();
+    }
+
+    private void OnTouchMoved(Vector2 screenPosition)
+    {
+        if (!isAiming) return;
+
+        // Update aim position
+        Vector3 worldPos = mainCam.ScreenToWorldPoint(new Vector3(screenPosition.x, screenPosition.y, -mainCam.transform.position.z));
+        worldPos.z = 0f;
+        aimTargetPosition = worldPos;
+    }
+
+    private void OnTouchEnded(Vector2 screenPosition)
+    {
+        if (!isAiming) return;
+
+        // Calculate final aim position
+        Vector3 worldPos = mainCam.ScreenToWorldPoint(new Vector3(screenPosition.x, screenPosition.y, -mainCam.transform.position.z));
+        worldPos.z = 0f;
+        aimTargetPosition = worldPos;
+        cachedMouseWorldPos = aimTargetPosition;
+
+        // Check if drag distance is sufficient to shoot
+        float dragDistance = Vector2.Distance(cachedStartPos, cachedMouseWorldPos);
+        if (dragDistance >= minDragDistanceToShoot)
+        {
+            // Fire the shot
+            StartShootCycle();
+        }
+        else
+        {
+            // Drag was too short, cancel the aim
+            OnAimCancelled?.Invoke();
+        }
+
+        isAiming = false;
+    }
+
+    // ========================= LEGACY MANUAL (for non-mobile) =========================
+    private void HandleManualLegacy()
     {
         if (!Input.GetMouseButtonDown(0)) return;
         if (projectilePrefab == null) return;
@@ -151,7 +257,7 @@ public class Shooter : MonoBehaviour
         if (!proj) proj = go.AddComponent<Projectile>();
 
         proj.Initialize(initialVelocity, gravityStrength, projectileRotationSpeed);
-        
+
         ProjectileCreated?.Invoke(proj);
         ManualShotFired?.Invoke();
     }
@@ -184,6 +290,13 @@ public class Shooter : MonoBehaviour
     public void SetManualTurnEnabled(bool enabled)
     {
         manualTurnEnabled = enabled;
+
+        // Cancel any active aiming if turn is disabled
+        if (!enabled && isAiming)
+        {
+            isAiming = false;
+            OnAimCancelled?.Invoke();
+        }
     }
 
     // ========================= PREVIEW SUPPORT =========================
@@ -234,5 +347,13 @@ public class Shooter : MonoBehaviour
         if (!useManualShooting) return false;
         if (!restrictManualShootingToTurn) return true;
         return manualTurnEnabled;
+    }
+
+    /// <summary>
+    /// Returns whether mobile controls are enabled.
+    /// </summary>
+    public bool IsMobileControlsEnabled()
+    {
+        return useMobileControls && MobileInputManager.Instance != null;
     }
 }

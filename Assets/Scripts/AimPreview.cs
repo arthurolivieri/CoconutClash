@@ -25,6 +25,9 @@ public class AimPreview : MonoBehaviour
     [SerializeField] private bool enforceWhite = true;
     [SerializeField, Range(0f, 1f)] private float minOpacity = 0.9f;
 
+    [Header("Mobile Settings")]
+    [SerializeField] private bool requireActiveAimOnMobile = true; // Only show preview when actively dragging on mobile
+
     [Header("Fallback (se Shooter não estiver setado)")]
     [SerializeField] private float fallbackPreviewSpeed = 12f;
     [SerializeField] private float fallbackGravity = 9.81f;
@@ -61,6 +64,7 @@ public class AimPreview : MonoBehaviour
         if (shooter != null)
         {
             shooter.ManualShotFired += OnManualShotFired;
+            shooter.OnAimCancelled += OnAimCancelled;
         }
     }
 
@@ -69,6 +73,7 @@ public class AimPreview : MonoBehaviour
         if (shooter != null)
         {
             shooter.ManualShotFired -= OnManualShotFired;
+            shooter.OnAimCancelled -= OnAimCancelled;
         }
     }
 
@@ -76,6 +81,12 @@ public class AimPreview : MonoBehaviour
     {
         // Oculta o preview até que a próxima janela de mira comece (ex: próximo turno)
         hideUntilNextAim = true;
+        HideAllDots();
+    }
+
+    private void OnAimCancelled()
+    {
+        // Hide the preview when aim is cancelled
         HideAllDots();
     }
 
@@ -98,23 +109,46 @@ public class AimPreview : MonoBehaviour
             return;
         }
 
+        // Check if we're using mobile controls and if we should only show preview while actively aiming
+        bool isMobile = shooter != null && shooter.IsMobileControlsEnabled();
+        if (isMobile && requireActiveAimOnMobile && !shooter.IsAiming)
+        {
+            HideAllDots();
+            return;
+        }
+
         Vector3 startPos = shooter ? shooter.GetMuzzleOrPosition() : transform.position;
         startPos.z = 0f;
 
-        Vector3 mouseWorldPos = mainCam.ScreenToWorldPoint(Input.mousePosition);
-        mouseWorldPos.z = 0f;
+        // Get the target position - use shooter's aim position on mobile, mouse position otherwise
+        Vector3 targetWorldPos;
+        if (isMobile && shooter.IsAiming)
+        {
+            targetWorldPos = shooter.AimTargetPosition;
+        }
+        else if (MobileInputManager.Instance != null && MobileInputManager.Instance.IsMobileInputActive)
+        {
+            // Use MobileInputManager's world position if available
+            targetWorldPos = MobileInputManager.Instance.InputWorldPosition;
+        }
+        else
+        {
+            // Fallback to mouse position
+            targetWorldPos = mainCam.ScreenToWorldPoint(Input.mousePosition);
+        }
+        targetWorldPos.z = 0f;
 
         Vector2 initialVelocity;
         float gravity;
 
         if (shooter != null)
         {
-            initialVelocity = shooter.PredictInitialVelocity(startPos, mouseWorldPos);
+            initialVelocity = shooter.PredictInitialVelocity(startPos, targetWorldPos);
             gravity = Mathf.Max(0.0001f, shooter.GetGravityStrength());
         }
         else
         {
-            Vector2 dir = ((Vector2)mouseWorldPos - (Vector2)startPos).normalized;
+            Vector2 dir = ((Vector2)targetWorldPos - (Vector2)startPos).normalized;
             initialVelocity = dir * fallbackPreviewSpeed;
             gravity = Mathf.Max(0.0001f, fallbackGravity);
         }
